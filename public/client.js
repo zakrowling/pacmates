@@ -16,7 +16,7 @@
   };
   const TILE_SHEET_CELL = 16;
   const DOT_TILE_INDEX = 37;
-  const ENERGIZER_TILE = { x: 4, y: 2 };
+  const POWER_PELLET_COLOR = '#39ff14';
   const SPRITE_CELL = 32;
   const PACMAN_DEATH_ROW = 1;
   const PACMAN_DEATH_FRAMES = 13;
@@ -595,16 +595,16 @@
         const pellet = maze.dots[y][x];
         if (!pellet) continue;
         if (pellet === 2) {
-          if (Math.floor(now / 250) % 2) continue;
-          if (assets.tiles) {
-            ctx.drawImage(assets.tiles, ENERGIZER_TILE.x * TILE_SHEET_CELL, ENERGIZER_TILE.y * TILE_SHEET_CELL,
-              TILE_SHEET_CELL, TILE_SHEET_CELL, x * TILE, y * TILE, TILE, TILE);
-          } else {
-            ctx.fillStyle = '#ffb8ae';
-            ctx.beginPath();
-            ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, TILE * 0.35, 0, Math.PI * 2);
-            ctx.fill();
-          }
+          // Power pellets: neon green with a pulsing glow so they stand out from the dots.
+          const pulse = 0.5 + 0.5 * Math.sin(now / 180);
+          ctx.save();
+          ctx.shadowColor = POWER_PELLET_COLOR;
+          ctx.shadowBlur = 6 + 10 * pulse;
+          ctx.fillStyle = POWER_PELLET_COLOR;
+          ctx.beginPath();
+          ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, TILE * (0.3 + 0.06 * pulse), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
           continue;
         }
         if (assets.tiles) {

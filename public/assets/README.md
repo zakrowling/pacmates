@@ -5,7 +5,7 @@ Pacmates uses the same asset layout as [bhattaraib58/Pacman-2Player](https://git
 | Path | Used for |
 |------|----------|
 | `image/sprites32.png` | 32×32 cells. Row 0: Pac-Man (right `0,1`, left `4,3`, up `5,6`, down `7,8`, closed `2`). Row 1: death animation (`0`–`12`). Rows 2–5: Blinky, Pinky, Inky, Clyde (right `0,1`, down `2,3`, left `4,5`, up `6,7`). Row 6: eyes. Row 7: frightened (blue `0,1`, white `2,3`). Players 2–4 are recoloured automatically. |
-| `image/pacman-tiles.png` | Pellets (16×16 cells, dot = tile index 37, power pellet = column 4, row 2) |
+| `image/pacman-tiles.png` | Dots (16×16 cells, dot = tile index 37). Power pellets are always drawn as glowing green circles. |
 | `image/pacmates-logo.png` | Lobby title logo (included) |
 | `image/pacman_icon.png` | Favicon |
 | `audio/opening_song.mp3` | Game start |
