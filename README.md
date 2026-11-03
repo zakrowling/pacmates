@@ -19,7 +19,7 @@ There is no game server. Pacmates is peer-to-peer, so it runs on any static host
 - The **host's browser** runs the game engine ([`public/engine.js`](public/engine.js)): positions, ghosts, scoring and a 30 FPS game loop. Other players only send their direction input, so their browsers can't move anyone or change scores.
 - Players connect to the host over WebRTC using [PeerJS](https://peerjs.com/) ([`public/net.js`](public/net.js)). The room code maps to the host's PeerJS ID, and PeerJS's free cloud server only introduces players to each other. Game traffic goes directly between browsers.
 - The game keeps running at full speed if the host's tab is in the background. If the host leaves, the remaining players hand hosting to the next player and reconnect. A game in progress goes back to the lobby, and the room closes when the last person leaves.
-- On some strict corporate or mobile networks, browsers can't connect directly to each other (no TURN relay is configured). If a mate can't join, try another network.
+- Some browser pairs and networks can't connect directly (e.g. Firefox ↔ Chrome, phones on mobile data, strict work networks). For those, add a free relay (TURN) server: sign up at [Metered Open Relay](https://www.metered.ca/tools/openrelay/) (20 GB/month free) and paste your credentials URL into `turnCredentialsUrl` in [`public/config.js`](public/config.js). Game traffic stays end-to-end encrypted through the relay.
 
 ## Run locally
 

@@ -16,6 +16,31 @@
   const HANDOVER_STAGGER_MS = 1500;
   const ROOM_NAME_RE = /^[A-Z0-9](?:[A-Z0-9-]{0,14}[A-Z0-9])$/;
 
+  // ICE servers: Google STUN for direct connections, plus TURN relays from config.js when configured.
+  let iceServersPromise = null;
+  function getIceServers() {
+    if (iceServersPromise) return iceServersPromise;
+    iceServersPromise = (async () => {
+      const stun = [{ urls: 'stun:stun.l.google.com:19302' }];
+      const url = (window.PACMATES_CONFIG || {}).turnCredentialsUrl;
+      if (!url) return stun;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timer);
+        const relays = await res.json();
+        return Array.isArray(relays) ? [...stun, ...relays] : stun;
+      } catch (err) {
+        console.warn('Relay (TURN) credentials unavailable; using direct connections only.', err);
+        return stun;
+      }
+    })();
+    return iceServersPromise;
+  }
+  let iceServers = null;
+  const peerOptions = () => ({ debug: 0, config: { iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] } });
+
   function normaliseRoomName(name) {
     const upper = String(name || '').trim().toUpperCase();
     return ROOM_NAME_RE.test(upper) ? upper : null;
@@ -126,7 +151,7 @@
       teardown();
       const code = fixedCode || generateRoomCode();
       dispatch('status', fixedCode ? 'Opening the room...' : 'Connecting to the matchmaking server...');
-      const p = new Peer(PEER_PREFIX + code, { debug: 0 });
+      const p = new Peer(PEER_PREFIX + code, peerOptions());
       peer = p;
       const timer = setTimeout(() => {
         if (peer !== p || mode === 'host') return;
@@ -177,7 +202,7 @@
       let settled = false;
       let stage = 'server'; // 'server' until PeerJS opens, then 'host' until the host answers
       dispatch('status', 'Connecting to the matchmaking server...');
-      const p = new Peer({ debug: 0 });
+      const p = new Peer(peerOptions());
       peer = p;
 
       const finish = (res) => {
@@ -273,6 +298,13 @@
 
     function emit(ev, ...args) {
       const ack = typeof args[args.length - 1] === 'function' ? args.pop() : () => {};
+      // Connecting needs the relay settings first (fetched once, usually before anyone clicks).
+      if (!iceServers && (ev === 'createRoom' || ev === 'joinRoom' || ev === 'enterRoom')) {
+        return getIceServers().then((servers) => {
+          iceServers = servers;
+          emit(ev, ...args, ack);
+        });
+      }
       if (ev === 'createRoom') return createRoom(ack);
       if (ev === 'joinRoom') return joinRoom(String(args[0] || '').trim().toUpperCase(), ack);
       if (ev === 'enterRoom') {
@@ -302,6 +334,8 @@
       },
     };
   }
+
+  getIceServers().then((servers) => { iceServers = servers; });
 
   window.PacmatesNet = { createNet, normaliseRoomName };
 })();
