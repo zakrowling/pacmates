@@ -62,6 +62,7 @@
     .room-label { margin-top: 16px; }
     #lobby-card.link-room .room-details,
     #lobby-card.link-room #setup-view { display: none; }
+    #lobby-card:not(.link-room) .link-only { display: none; }
     .player-list { list-style: none; text-align: left; margin: 15px 0; }
     .player-item {
       padding: 8px 12px; margin: 6px 0; border-radius: 4px;
@@ -125,6 +126,7 @@
 
     <div id="room-view" style="display:none;">
       <button class="btn" id="start-btn">Start Game</button>
+      <button class="btn secondary link-only" id="home-btn">Create or Join a Room</button>
       <p class="hint" id="reconnect-hint" style="display:none;"></p>
       <!-- Room code details are hidden for link rooms like /pacmates/mate -->
       <div class="room-details">

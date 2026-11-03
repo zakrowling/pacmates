@@ -379,6 +379,11 @@
     resetToSetup();
   });
   $('exit-btn').addEventListener('click', showLobby);
+  // Link rooms: leave and go back to the home screen to create or join a different room.
+  $('home-btn').addEventListener('click', () => {
+    socket.emit('leaveRoom');
+    resetToSetup();
+  });
 
   socket.on('lobbyUpdate', applyLobby);
   socket.on('disconnect', (reason) => {
