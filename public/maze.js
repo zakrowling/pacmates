@@ -1,3 +1,8 @@
+// Shared by the browser (window.PacmatesMaze) and Node tests (require).
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.PacmatesMaze = factory();
+})(typeof self !== 'undefined' ? self : this, () => {
 // Maze configuration matrix.
 //   #  wall
 //   .  dot
@@ -76,4 +81,5 @@ function parseMaze(layout) {
   return { width, height, walls, dots, spawns, ghostHouse, houseDoor, houseExit };
 }
 
-module.exports = { MAZE_LAYOUT, TILE, PELLET, parseMaze };
+return { MAZE_LAYOUT, TILE, PELLET, parseMaze };
+});

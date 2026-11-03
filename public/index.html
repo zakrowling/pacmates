@@ -110,6 +110,7 @@
       <div class="or">- OR -</div>
       <input type="text" id="room-input" maxlength="4" placeholder="CODE" autocomplete="off">
       <button class="btn secondary" id="join-btn">Join Room</button>
+      <p class="hint" id="connecting-hint" style="display:none;">Connecting...</p>
     </div>
 
     <div id="room-view" style="display:none;">
@@ -118,6 +119,7 @@
       <div>Players (<span id="player-count">1</span>/4)</div>
       <button class="btn" id="start-btn">Start Game</button>
       <p class="hint" id="waiting-hint" style="display:none;">Waiting for host to start...</p>
+      <p class="hint" id="host-hint" style="display:none;">Share the code with your mates. The game runs in your browser, so keep this tab open.</p>
       <button class="btn ghost" id="leave-btn">Leave Room</button>
     </div>
 
@@ -145,7 +147,10 @@
     </div>
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="maze.js"></script>
+  <script src="engine.js"></script>
+  <script src="net.js"></script>
   <script src="client.js"></script>
 </body>
 </html>

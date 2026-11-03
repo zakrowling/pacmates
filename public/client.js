@@ -1,5 +1,5 @@
 (() => {
-  const socket = io();
+  const socket = window.PacmatesNet.createNet();
 
   // Asset layout matches github.com/bhattaraib58/Pacman-2Player (image/, audio/, font/).
   const ASSET_PATHS = {
@@ -304,6 +304,8 @@
     renderSlots();
     $('start-btn').style.display = isHost() ? 'block' : 'none';
     $('waiting-hint').style.display = isHost() ? 'none' : 'block';
+    $('host-hint').style.display = isHost() ? 'block' : 'none';
+    $('leave-btn').textContent = isHost() ? 'Close Room' : 'Leave Room';
     $('again-btn').style.display = isHost() ? 'block' : 'none';
     $('again-hint').style.display = isHost() ? 'none' : 'block';
   }
@@ -326,17 +328,29 @@
     showLobby();
   }
 
+  function setConnecting(connecting) {
+    $('create-btn').disabled = connecting;
+    $('join-btn').disabled = connecting;
+    if (connecting) showError('');
+    $('connecting-hint').style.display = connecting ? 'block' : 'none';
+  }
+
   function handleJoinResponse(res) {
+    setConnecting(false);
     if (!res.ok) return showError(res.error);
     showError('');
     state.playerId = res.playerId;
     applyLobby(res);
   }
 
-  $('create-btn').addEventListener('click', () => socket.emit('createRoom', handleJoinResponse));
+  $('create-btn').addEventListener('click', () => {
+    setConnecting(true);
+    socket.emit('createRoom', handleJoinResponse);
+  });
   $('join-btn').addEventListener('click', () => {
     const code = $('room-input').value.trim().toUpperCase();
     if (!/^[A-Z]{4}$/.test(code)) return showError('Enter a 4-letter room code.');
+    setConnecting(true);
     socket.emit('joinRoom', code, handleJoinResponse);
   });
   $('room-input').addEventListener('keydown', (e) => {
@@ -351,9 +365,9 @@
   $('exit-btn').addEventListener('click', showLobby);
 
   socket.on('lobbyUpdate', applyLobby);
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     resetToSetup();
-    showError('Disconnected from server.');
+    showError(reason || 'Disconnected.');
   });
 
   // ---------- Game ----------
