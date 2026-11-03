@@ -3,7 +3,7 @@
 Online multiplayer Pac-Man for up to 4 mates. Play it at **https://zakrowling.github.io/pacmates/**
 
 - **Room codes**: the host creates a room and gets a 4-letter code (e.g. `WFTF`). Up to 3 friends join with that code. Friends can also join a game that's already running. They drop into a free corner without interrupting anyone.
-- **Link rooms**: share a link like https://zakrowling.github.io/pacmates/mate and nobody needs a code. The first person to open it hosts and everyone else joins. If the host leaves, the next player takes over hosting (with the same name), so the room stays open while anyone is in it. Any 2–16 letters, numbers or dashes work as a room name. Link rooms keep the lobby simple: just the player boxes and a **Start with X players** button. Code rooms also show the code and a copyable invite link.
+- **Link rooms**: share a link like https://zakrowling.github.io/pacmates/mate and nobody needs a code. The first person to open it hosts and everyone else joins. If the host leaves, the next player takes over hosting (with the same name), so the room stays open while anyone is in it. Any 2–16 letters, numbers or dashes work as a room name. Link rooms keep the lobby simple: just the player boxes and a **Start game with X players** button. Code rooms also show the code and a copyable invite link.
 - **Lobby**: 4 player slots, each with that player's Pac-Man and a random 4-letter name. Your slot is marked `(YOU)`. Any player can start the game.
 - **4 spawn points**: Players 1–4 start in the maze corners. The spawn points are set in the maze matrix in [`public/maze.js`](public/maze.js). Each player's score panel sits in the matching corner.
 - **Name bubbles**: each Pac-Man has its name floating above it in game.

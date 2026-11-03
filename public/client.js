@@ -303,7 +303,7 @@
     renderSlots();
     // Any player can start.
     const count = payload.players.length;
-    $('start-btn').textContent = `Start with ${count} player${count === 1 ? '' : 's'}`;
+    $('start-btn').textContent = `Start game with ${count} player${count === 1 ? '' : 's'}`;
     $('start-btn').style.display = 'block';
     $('room-code-txt').classList.toggle('long', payload.roomCode.length > 6);
     const link = shareLink(payload.roomCode);
