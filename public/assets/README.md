@@ -17,4 +17,4 @@ Pacmates uses the same asset layout as [bhattaraib58/Pacman-2Player](https://git
 
 If a file is missing, the game still runs, using vector graphics and synthesized sound effects instead.
 
-The UI font is [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P), loaded from Google Fonts.
+The UI font is [Geist](https://fonts.google.com/specimen/Geist), loaded from Google Fonts.

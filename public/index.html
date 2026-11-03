@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/image/pacman_icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -19,13 +19,14 @@
         radial-gradient(ellipse 50% 45% at 100% 100%, rgba(0, 210, 255, 0.2), transparent 70%);
       background-attachment: fixed;
       color: #fff;
-      font-family: 'Press Start 2P', 'Courier New', monospace;
+      font-family: 'Geist', system-ui, -apple-system, sans-serif;
+      font-weight: 500;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
       padding: 40px 20px 20px;
-      font-size: 10px;
+      font-size: 14px;
       line-height: 1.8;
     }
     header { text-align: center; margin-bottom: 20px; }
@@ -40,7 +41,7 @@
     }
     .btn {
       background: #ffe600; color: #000; border: none; padding: 12px 20px;
-      font-family: inherit; font-size: 11px; border-radius: 6px; cursor: pointer;
+      font-family: inherit; font-weight: 700; font-size: 15px; border-radius: 6px; cursor: pointer;
       width: 100%; margin-top: 10px;
     }
     .btn:hover { filter: brightness(1.1); }
@@ -62,10 +63,10 @@
     .room-display.long { font-size: 16px; letter-spacing: 3px; }
     .share { display: flex; gap: 8px; align-items: center; }
     .share input[type="text"] {
-      flex: 1; margin: 0; font-size: 9px; letter-spacing: 0; text-transform: none; text-align: left; padding: 10px;
+      flex: 1; margin: 0; font-size: 13px; letter-spacing: 0; text-transform: none; text-align: left; padding: 10px;
     }
     .share .btn { width: auto; margin: 0; padding: 10px 14px; }
-    .share-hint { margin-bottom: 12px; font-size: 8px; }
+    .share-hint { margin-bottom: 12px; font-size: 11px; }
     .room-label { margin-top: 16px; }
     #lobby-card.link-room .room-details,
     #lobby-card.link-room #setup-view { display: none; }
@@ -79,14 +80,14 @@
     .slot {
       background: #000; border: 2px dashed #2a2a55; border-radius: 10px;
       padding: 10px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px;
-      min-height: 130px; justify-content: center; color: #444; font-size: 9px;
+      min-height: 130px; justify-content: center; color: #444; font-size: 13px;
     }
     .slot.filled { border-style: solid; }
     .slot.you { box-shadow: 0 0 12px currentColor; }
     .slot canvas { width: 64px; height: 64px; background: transparent; }
-    .slot .slot-num { color: #666; font-size: 8px; }
-    .slot .slot-name { font-size: 10px; }
-    .slot .slot-tag { font-size: 7px; color: #aaa; min-height: 12px; }
+    .slot .slot-num { color: #666; font-size: 11px; }
+    .slot .slot-name { font-size: 14px; }
+    .slot .slot-tag { font-size: 10px; color: #aaa; min-height: 12px; }
     .error { color: #ff5555; min-height: 20px; margin-top: 10px; }
     .hint { color: #888; margin-top: 10px; }
 
@@ -102,8 +103,8 @@
     .score-tag.right { flex-direction: row-reverse; }
     .score-tag.empty { visibility: hidden; }
     .score-tag.out { opacity: 0.4; }
-    .score-tag .tag-name { font-size: 8px; }
-    .score-tag .tag-score { font-size: 10px; color: #fff; }
+    .score-tag .tag-name { font-size: 11px; font-weight: 600; }
+    .score-tag .tag-score { font-size: 14px; font-weight: 700; color: #fff; }
     .score-tag .tag-lives { font-size: 10px; letter-spacing: 1px; font-family: sans-serif; }
     canvas { background: #000; border-radius: 6px; image-rendering: pixelated; }
     /* The arena is wider than most game boards; shrink it to fit smaller screens. */
