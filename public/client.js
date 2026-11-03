@@ -6,7 +6,7 @@
     tiles: 'assets/image/pacman-tiles.png',
     sprites: 'assets/image/sprites32.png',
     audio: {
-      start: 'assets/audio/opening_song.mp3',
+      start: 'assets/audio/pacman-theme.mp3', // played at the start of each round
       eat: 'assets/audio/eating.short.mp3',
       power: 'assets/audio/eatpill.mp3',
       eatGhost: 'assets/audio/eatghost.mp3',
@@ -152,10 +152,15 @@
     },
   };
 
+  // Per-sound volume for the audio files (default full volume).
+  const SOUND_VOLUME = { start: 0.5 };
+
   function playSound(key) {
     const audio = assets.sounds[key];
     if (audio && audio.dataset.ready && !audio.error) {
-      audio.cloneNode().play().catch(() => {});
+      const clip = audio.cloneNode();
+      clip.volume = SOUND_VOLUME[key] ?? 1;
+      clip.play().catch(() => {});
       return;
     }
     const ac = getAudioCtx();

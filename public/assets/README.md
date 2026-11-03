@@ -8,7 +8,7 @@ Pacmates uses the same asset layout as [bhattaraib58/Pacman-2Player](https://git
 | `image/pacman-tiles.png` | Dots (16×16 cells, dot = tile index 37). Power pellets are always drawn as glowing green circles. |
 | `image/pacmates-logo.png` | Lobby title logo (included) |
 | `image/pacman_icon.png` | Favicon |
-| `audio/opening_song.mp3` | Game start |
+| `audio/pacman-theme.mp3` | Start of each round (half volume) |
 | `audio/eating.short.mp3` | Eating a dot |
 | `audio/eatpill.mp3` | Eating a power pellet |
 | `audio/eatghost.mp3` | Eating a ghost |
