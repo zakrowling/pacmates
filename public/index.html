@@ -40,6 +40,8 @@
     }
     .btn:hover { filter: brightness(1.1); }
     .btn.secondary { background: #00d2ff; }
+    .btn.outline { background: transparent; color: #00d2ff; border: 2px solid #00d2ff; }
+    .btn.outline:hover { background: rgba(0, 210, 255, 0.1); }
     .btn.ghost { background: transparent; color: #888; border: 1px solid #333; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     input[type="text"] {
@@ -126,7 +128,7 @@
 
     <div id="room-view" style="display:none;">
       <button class="btn" id="start-btn">Start Game</button>
-      <button class="btn secondary link-only" id="home-btn">Create or Join a Room</button>
+      <button class="btn outline link-only" id="home-btn">Create or join a new room</button>
       <p class="hint" id="reconnect-hint" style="display:none;"></p>
       <!-- Room code details are hidden for link rooms like /pacmates/mate -->
       <div class="room-details">
