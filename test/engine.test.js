@@ -377,3 +377,49 @@ test('the maze is cleared once the regular dots are gone, even with power pellet
   run(10);
   assert.equal(last('gameOver').data.reason, 'cleared');
 });
+
+test('maze has no spots where ghosts get stuck circling', () => {
+  const { room } = startedRoom(4);
+  const floors = [];
+  MAZE.walls.forEach((row, y) => row.forEach((t, x) => { if (t === 0) floors.push([x, y]); }));
+  const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+  for (const modeIndex of [0, 1]) {
+    for (const g of room.ghosts) {
+      for (const [x, y] of floors) {
+        const d = dirs[(x + y) % 4];
+        Object.assign(g, { def: { ...g.def, releaseTick: 0 }, inHouse: false, eyes: false, frightened: false, sx: x * S, sy: y * S, dir: d, speedAcc: 0 });
+        const seen = new Set();
+        for (let t = 0; t < 240; t++) {
+          room.modeIndex = modeIndex;
+          room.stepGhost(g);
+          if (t >= 120) seen.add(`${Math.round(g.sx / S)},${Math.round(g.sy / S)}`);
+        }
+        assert.ok(seen.size > 6, `${g.kind} stuck near ${x},${y} in ${modeIndex ? 'chase' : 'scatter'}: ${[...seen].join(' ')}`);
+      }
+    }
+  }
+});
+
+test('eaten ghosts get home from anywhere in the maze', () => {
+  const { room } = startedRoom(1);
+  const g = room.ghosts[0];
+  MAZE.walls.forEach((row, y) => row.forEach((t, x) => {
+    if (t !== 0) return;
+    Object.assign(g, { def: { ...g.def, releaseTick: 0 }, inHouse: false, eyes: true, frightened: false, sx: x * S, sy: y * S, dir: { x: 0, y: 0 }, speedAcc: 0 });
+    let n = 0;
+    while (g.eyes && n++ < 600) room.stepGhost(g);
+    assert.equal(g.eyes, false, `eyes stuck from ${x},${y}`);
+  }));
+});
+
+test('power pellets are spread out, not bunched together', () => {
+  const pellets = [];
+  MAZE.dots.forEach((row, y) => row.forEach((d, x) => { if (d === PELLET.POWER) pellets.push([x, y]); }));
+  assert.equal(pellets.length, 8);
+  for (const [ax, ay] of pellets) {
+    for (const [bx, by] of pellets) {
+      if (ax === bx && ay === by) continue;
+      assert.ok(Math.abs(ax - bx) + Math.abs(ay - by) >= 10, `pellets at ${ax},${ay} and ${bx},${by} are too close`);
+    }
+  }
+});

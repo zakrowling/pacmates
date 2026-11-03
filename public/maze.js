@@ -20,13 +20,13 @@ const HALF_LAYOUT = [
   '#.#................#.#',
   '#.#.##.###..###.##.#.#',
   '#o.....#......#.....o#',
-  '###.##.#.####.#.##.###',
+  '###.##.#.#..#.#.##.###',
   '#........#..#........#',
   '#.####.#.#..#.#.####.#',
   '#......#......#......#',
   '#.##.#.###..###.#.##.#',
   '#..#.#..........#.#..#',
-  '##.#.###.####.###.#.##',
+  '##.#.###.#..#.###.#.##',
   ' ........#..#........ ',
   '#.###.##.#..#.##.###.#',
   '#...#............#...#',
@@ -84,8 +84,27 @@ function openCentreColumn(layout) {
   });
 }
 
-const MAZE_LAYOUT = openCentreColumn(
-  stampCentre(buildWideLayout(HALF_LAYOUT, MIDDLE_OPENINGS), CENTRE_HOUSE, CENTRE_HOUSE_TOP),
+// Power pellets are placed across the whole arena (replacing the half layout's 'o's) so they're evenly spread.
+const POWER_PELLETS = [
+  [1, 5], [11, 5], [31, 5], [41, 5],
+  [1, 17], [11, 17], [31, 17], [41, 17],
+];
+
+function placePowerPellets(layout, pellets) {
+  return layout.map((row, y) => {
+    let out = row.replace(/o/g, '.');
+    for (const [x, py] of pellets) {
+      if (py !== y) continue;
+      if (out[x] !== '.') throw new Error(`Power pellet at ${x},${y} must be on a dot tile`);
+      out = out.slice(0, x) + 'o' + out.slice(x + 1);
+    }
+    return out;
+  });
+}
+
+const MAZE_LAYOUT = placePowerPellets(
+  openCentreColumn(stampCentre(buildWideLayout(HALF_LAYOUT, MIDDLE_OPENINGS), CENTRE_HOUSE, CENTRE_HOUSE_TOP)),
+  POWER_PELLETS,
 );
 
 const TILE = { FLOOR: 0, WALL: 1, HOUSE: 2 };
