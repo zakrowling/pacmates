@@ -2,7 +2,7 @@
 
 Online multiplayer Pac-Man for up to 4 mates.
 
-- **Room codes**: the host creates a room and gets a 4-letter code (e.g. `WFTF`). Up to 3 friends join with that code.
+- **Room codes**: the host creates a room and gets a 4-letter code (e.g. `WFTF`). Up to 3 friends join with that code. Friends can also join a game that's already running. They drop into a free corner without interrupting anyone.
 - **Lobby**: 4 player slots, each with that player's Pac-Man and a random 4-letter name. Your slot is marked `(YOU)`.
 - **Server-authoritative**: player positions live on the server and update in a 30 FPS game loop. Clients only send direction input, so players can't desync or cheat.
 - **4 spawn points**: Players 1–4 start in the maze corners. The spawn points are set in the maze matrix in [`maze.js`](maze.js).

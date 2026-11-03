@@ -409,7 +409,14 @@ function startGame(room) {
   room.started = true;
   room.players.forEach(resetPlayerForGame);
 
-  io.to(room.code).emit('gameStarted', {
+  io.to(room.code).emit('gameStarted', gamePayload(room));
+
+  stopLoop(room);
+  room.loop = setInterval(() => gameTick(room), 1000 / TICK_RATE);
+}
+
+function gamePayload(room) {
+  return {
     maze: {
       width: MAZE.width,
       height: MAZE.height,
@@ -422,10 +429,7 @@ function startGame(room) {
     tickRate: TICK_RATE,
     ghosts: room.ghosts.map((g) => serializeGhost(room, g)),
     ...lobbyPayload(room),
-  });
-
-  stopLoop(room);
-  room.loop = setInterval(() => gameTick(room), 1000 / TICK_RATE);
+  };
 }
 
 function gameTick(room) {
@@ -495,13 +499,18 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(code);
     if (!room) return ack({ ok: false, error: 'Room not found!' });
-    if (room.started) return ack({ ok: false, error: 'Game already in progress!' });
     if (room.players.size >= MAX_PLAYERS) return ack({ ok: false, error: 'Room is full (max 4 players)!' });
 
     leaveCurrentRoom(socket);
     const player = addPlayer(room, socket);
     ack({ ok: true, playerId: player.id, ...lobbyPayload(room) });
     broadcastLobby(room);
+
+    // Mid-game joiners drop straight into the running game at their corner, briefly protected.
+    if (room.started) {
+      player.invulnerableTicks = INVULNERABLE_TICKS;
+      socket.emit('gameStarted', gamePayload(room));
+    }
   });
 
   socket.on('startGame', () => {
