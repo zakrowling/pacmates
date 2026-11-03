@@ -75,20 +75,18 @@
     #game-view { display: none; flex-direction: column; align-items: center; position: relative; }
     /* Score panels sit at the corner matching each player's spawn: P1 TL, P2 TR, P3 BL, P4 BR. */
     .hud { display: flex; justify-content: space-between; width: 100%; max-width: 528px; }
-    .hud.top { margin-bottom: 8px; }
-    .hud.bottom { margin-top: 8px; }
+    .hud.top { margin-bottom: 6px; }
+    .hud.bottom { margin-top: 6px; }
     .score-tag {
-      min-width: 160px; padding: 6px 10px; border-radius: 6px; background: #0d0d1f;
-      border: 2px solid currentColor; display: grid; grid-template-columns: auto auto;
-      justify-content: space-between; align-items: center; column-gap: 12px; row-gap: 4px;
+      padding: 4px 10px; border-radius: 6px; background: #0d0d1f; border: 2px solid currentColor;
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
     }
-    .score-tag .tag-name { grid-column: 1 / -1; }
-    .score-tag.right .tag-name { text-align: right; }
+    .score-tag.right { flex-direction: row-reverse; }
     .score-tag.empty { visibility: hidden; }
     .score-tag.out { opacity: 0.4; }
     .score-tag .tag-name { font-size: 8px; }
-    .score-tag .tag-score { font-size: 12px; color: #fff; }
-    .score-tag .tag-lives { font-size: 12px; letter-spacing: 2px; font-family: sans-serif; }
+    .score-tag .tag-score { font-size: 10px; color: #fff; }
+    .score-tag .tag-lives { font-size: 10px; letter-spacing: 1px; font-family: sans-serif; }
     canvas { background: #000; border-radius: 6px; image-rendering: pixelated; }
 
     #game-over {
