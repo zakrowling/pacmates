@@ -165,22 +165,24 @@
   // ---------- Ghosts ----------
 
   function createGhosts(playerCount) {
-    return GHOST_DEFS.slice(0, ghostCountFor(playerCount)).map((def) => {
-      return {
-        def,
-        id: def.id,
-        kind: def.kind,
-        sx: def.home.x * STEPS_PER_TILE,
-        sy: def.home.y * STEPS_PER_TILE,
-        dir: { x: 0, y: 0 },
-        facing: 'up',
-        inHouse: true,
-        frightened: false,
-        eyes: false,
-        reverse: false,
-        speedAcc: 0,
-      };
-    });
+    return GHOST_DEFS.slice(0, ghostCountFor(playerCount)).map((def) => makeGhost(def));
+  }
+
+  function makeGhost(def) {
+    return {
+      def,
+      id: def.id,
+      kind: def.kind,
+      sx: def.home.x * STEPS_PER_TILE,
+      sy: def.home.y * STEPS_PER_TILE,
+      dir: { x: 0, y: 0 },
+      facing: 'up',
+      inHouse: true,
+      frightened: false,
+      eyes: false,
+      reverse: false,
+      speedAcc: 0,
+    };
   }
 
   class GameRoom {
@@ -229,8 +231,17 @@
       if (this.started) player.invulnerableTicks = INVULNERABLE_TICKS;
 
       this.players.set(id, player);
+      if (this.started) this.addGhostsForPlayers();
       if (!this.hostId) this.hostId = id;
       return { ok: true, payload: { playerId: id, ...this.lobbyPayload() } };
+    }
+
+    // Mid-game joiners bring the next ghost in line, which leaves the house shortly after.
+    addGhostsForPlayers() {
+      while (this.ghosts.length < ghostCountFor(this.players.size)) {
+        const def = GHOST_DEFS[this.ghosts.length];
+        this.ghosts.push(makeGhost({ ...def, releaseTick: this.tick + RELEASE_INTERVAL_TICKS }));
+      }
     }
 
     announceJoin(id) {

@@ -330,3 +330,20 @@ test('centre column wraps players from the top edge to the bottom and back', () 
   run(3 * S);
   assert.deepEqual(tile(p1), [21, 1]);
 });
+
+test('joining mid-game adds the next ghost, which leaves the house shortly after', () => {
+  const { room, run } = startedRoom(2);
+  assert.equal(room.ghosts.length, 5);
+  run(30);
+  room.join('p3');
+  assert.equal(room.ghosts.length, 6);
+  const added = room.ghosts[5];
+  assert.equal(added.kind, 'funky');
+  assert.equal(added.inHouse, true);
+  assert.ok(added.def.releaseTick > room.tick);
+
+  // Leaving and rejoining doesn't keep adding ghosts.
+  room.leave('p3');
+  room.join('p3b');
+  assert.equal(room.ghosts.length, 6);
+});
