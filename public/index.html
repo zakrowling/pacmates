@@ -11,7 +11,13 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #000;
+      background-color: #000;
+      /* Subtle neon glow: maze blue up top, ghost pink and cyan in the lower corners. */
+      background-image:
+        radial-gradient(ellipse 70% 50% at 50% -10%, rgba(33, 33, 222, 0.35), transparent 70%),
+        radial-gradient(ellipse 50% 45% at 0% 100%, rgba(255, 60, 200, 0.22), transparent 70%),
+        radial-gradient(ellipse 50% 45% at 100% 100%, rgba(0, 210, 255, 0.2), transparent 70%);
+      background-attachment: fixed;
       color: #fff;
       font-family: 'Press Start 2P', 'Courier New', monospace;
       display: flex;
