@@ -634,10 +634,12 @@
     const x = Math.max(1, Math.min(canvas.width - w - 1, cx - w / 2));
     const y = Math.max(1, top - h - 2);
 
-    ctx.fillStyle = 'rgba(20, 20, 32, 0.85)';
+    // Your own bubble is yellow with black text so you can spot yourself; everyone else's is black.
+    const isYou = p.id === state.playerId;
+    ctx.fillStyle = isYou ? '#ffe600' : 'rgba(0, 0, 0, 0.85)';
     roundRect(ctx, x, y, w, h, h / 2);
     ctx.fill();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = isYou ? '#000' : '#fff';
     ctx.fillText(p.name, x + w / 2, y + h / 2 + 1);
   }
 
