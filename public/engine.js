@@ -12,7 +12,7 @@
   const START_LIVES = 3;
   const DOT_SCORE = 10;
   const POWER_SCORE = 50;
-  const GHOST_SCORE = 200; // doubles for each ghost eaten during one power pellet
+  const GHOST_SCORE = 200; // doubles for each ghost or player eaten during one power-up
   const DEATH_TICKS = 45;
   const INVULNERABLE_TICKS = 75;
   const FRIGHTENED_TICKS = 6 * TICK_RATE;
@@ -100,6 +100,8 @@
     player.dir = { x: 0, y: 0 };
     player.nextDir = null;
     player.facing = 'right';
+    player.poweredTicks = 0;
+    player.combo = 0;
   }
 
   function resetPlayerForGame(player) {
@@ -125,13 +127,17 @@
       lives: p.lives,
       status: p.status,
       invulnerable: p.invulnerableTicks > 0,
+      powered: p.poweredTicks > 0,
+      poweredFlashing: p.poweredTicks > 0 && p.poweredTicks < FLASH_TICKS,
       deathProgress: p.status === 'dead' ? 1 - p.deadTicks / DEATH_TICKS : 0,
     };
   }
 
   function updatePlayerTimers(p) {
     if (p.invulnerableTicks > 0) p.invulnerableTicks--;
+    if (p.poweredTicks > 0) p.poweredTicks--;
     if (p.status !== 'dead' || --p.deadTicks > 0) return;
+    // Lives are only lost to ghosts; players eaten by another Pac-Man come straight back.
     if (p.lives > 0) {
       respawnPlayer(p);
       p.status = 'alive';
@@ -184,7 +190,6 @@
       this.modeIndex = 0;
       this.modeTicks = 0;
       this.frightenedTicks = 0;
-      this.ghostCombo = 0;
     }
 
     get size() {
@@ -237,7 +242,6 @@
       this.modeIndex = 0;
       this.modeTicks = 0;
       this.frightenedTicks = 0;
-      this.ghostCombo = 0;
       this.ghosts = createGhosts();
       this.started = true;
       this.players.forEach(resetPlayerForGame);
@@ -350,12 +354,16 @@
       this.dotsRemaining--;
       p.score += pellet === PELLET.POWER ? POWER_SCORE : DOT_SCORE;
       events.push({ type: 'pellet', x: t.x, y: t.y, by: p.id, power: pellet === PELLET.POWER });
-      if (pellet === PELLET.POWER) this.frightenGhosts();
+      if (pellet === PELLET.POWER) {
+        // A power pellet lets this player eat ghosts and un-powered players for a while.
+        p.poweredTicks = FRIGHTENED_TICKS;
+        p.combo = 0;
+        this.frightenGhosts();
+      }
     }
 
     frightenGhosts() {
       this.frightenedTicks = FRIGHTENED_TICKS;
-      this.ghostCombo = 0;
       this.ghosts.forEach((g) => {
         if (g.eyes) return;
         g.frightened = true;
@@ -501,8 +509,8 @@
           if (wrapDx(pt.x, gt.x) + Math.abs(pt.y - gt.y) >= 0.75) continue;
 
           if (g.frightened) {
-            const points = GHOST_SCORE * 2 ** Math.min(this.ghostCombo, 3);
-            this.ghostCombo++;
+            const points = GHOST_SCORE * 2 ** Math.min(p.combo, 3);
+            p.combo++;
             g.frightened = false;
             g.eyes = true;
             p.score += points;
@@ -518,6 +526,31 @@
           }
         }
       });
+      this.resolvePlayerCollisions(events);
+    }
+
+    // A powered-up Pac-Man eats any un-powered Pac-Man it touches; the eaten player
+    // goes back to their corner without losing a life.
+    resolvePlayerCollisions(events) {
+      const alive = [...this.players.values()].filter((p) => p.status === 'alive');
+      for (const eater of alive) {
+        if (eater.poweredTicks === 0 || eater.status !== 'alive') continue;
+        for (const prey of alive) {
+          if (prey === eater || prey.status !== 'alive' || prey.poweredTicks > 0 || prey.invulnerableTicks > 0) continue;
+          const a = tileOf(eater);
+          const b = tileOf(prey);
+          if (wrapDx(a.x, b.x) + Math.abs(a.y - b.y) >= 0.75) continue;
+
+          const points = GHOST_SCORE * 2 ** Math.min(eater.combo, 3);
+          eater.combo++;
+          eater.score += points;
+          prey.status = 'dead';
+          prey.deadTicks = DEATH_TICKS;
+          prey.dir = { x: 0, y: 0 };
+          prey.nextDir = null;
+          events.push({ type: 'playerEaten', by: eater.id, id: prey.id, points, x: b.x, y: b.y });
+        }
+      }
     }
   }
 

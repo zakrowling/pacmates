@@ -10,7 +10,7 @@ Online multiplayer Pac-Man for up to 4 mates. Play it at **https://zakrowling.gi
 - **Name bubbles**: each Pac-Man has its name floating above it in game.
 - **Tunnel**: like the arcade, the middle-left and middle-right edges are joined. Go off one side and you come back on the other. Ghosts slow down in the tunnel.
 - **Ghosts**: each half has its own ghost house and family of Blinky, Pinky, Inky and Clyde (8 ghosts). They leave the house one at a time and use the arcade chase/scatter AI, targeting the nearest player.
-- **Power pellets**: eating one of the 8 power pellets turns the ghosts blue for 6 seconds. Eat them for 200, 400, 800, then 1600 points.
+- **Power pellets**: eating one of the 8 power pellets turns the ghosts blue for 6 seconds. While powered up you glow and can also eat other Pac-Men who aren't powered up; they go back to their corner without losing a life. Each ghost or player you eat in one power-up scores 200, 400, 800, then 1600 points.
 - **Lives**: each player has 3 lives. After being caught you respawn in your corner and can't be caught for a moment. The game ends when the maze is cleared or everyone is out.
 
 ## How it works

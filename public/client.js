@@ -561,6 +561,10 @@
       } else if (ev.type === 'ghostEaten') {
         state.popups.push({ text: String(ev.points), x: ev.x, y: ev.y, until: now + 1000 });
         if (mine) playSound('eatGhost');
+      } else if (ev.type === 'playerEaten') {
+        state.popups.push({ text: String(ev.points), x: ev.x, y: ev.y, until: now + 1000 });
+        if (mine) playSound('eatGhost');
+        else if (ev.id === state.playerId) playSound('die');
       } else if (ev.type === 'death' && ev.id === state.playerId) {
         playSound('die');
       }
@@ -735,7 +739,15 @@
     const cy = y * TILE + TILE / 2;
     // Flicker while invulnerable after respawning.
     ctx.globalAlpha = p.invulnerable && Math.floor(now / 100) % 2 ? 0.35 : 1;
+    // Powered-up players glow (flashing near the end) so others know to run.
+    if (p.powered && p.status === 'alive') {
+      const flashOff = p.poweredFlashing && Math.floor(now / 150) % 2;
+      ctx.shadowColor = flashOff ? 'transparent' : '#ffffff';
+      ctx.shadowBlur = 18;
+    }
     drawPacman(ctx, p, cx, cy, SPRITE_SIZE, now);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
     ctx.globalAlpha = 1;
   }
 

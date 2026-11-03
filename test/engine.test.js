@@ -253,3 +253,54 @@ test('each ghost family leaves and returns to its own house', () => {
   assert.equal(right.eyes, false);
   assert.ok(right.sx / S >= 30 && right.sx / S <= 32, `revived at x=${right.sx / S}`);
 });
+
+test('a powered Pac-Man eats an un-powered one, who respawns at their corner keeping their lives', () => {
+  const { room, run, sent } = startedRoom(2);
+  const [p1, p2] = [room.players.get('p1'), room.players.get('p2')];
+  room.dots[1][1] = PELLET.POWER;
+  room.dotsRemaining++;
+  run(1);
+  assert.ok(p1.poweredTicks > 0);
+  assert.equal(p2.poweredTicks, 0);
+
+  const before = p1.score;
+  Object.assign(p2, { sx: p1.sx, sy: p1.sy, dir: { x: 0, y: 0 } });
+  run(1);
+  assert.equal(p2.status, 'dead');
+  assert.equal(p2.lives, 3);
+  assert.equal(p1.score, before + 200);
+  assert.ok(sent.some((m) => m.ev === 'state' && m.data.events.some((e) => e.type === 'playerEaten' && e.by === 'p1' && e.id === 'p2')));
+
+  run(50);
+  assert.equal(p2.status, 'alive');
+  assert.deepEqual(tile(p2), [41, 1]);
+  assert.equal(p2.lives, 3);
+});
+
+test('players without a power-up, or both powered, pass through each other', () => {
+  const { room, run } = startedRoom(2);
+  const [p1, p2] = [room.players.get('p1'), room.players.get('p2')];
+  Object.assign(p2, { sx: p1.sx, sy: p1.sy });
+  run(1);
+  assert.equal(p1.status, 'alive');
+  assert.equal(p2.status, 'alive');
+
+  p1.poweredTicks = 100;
+  p2.poweredTicks = 100;
+  run(1);
+  assert.equal(p1.status, 'alive');
+  assert.equal(p2.status, 'alive');
+});
+
+test('eating several things in one power-up doubles the points', () => {
+  const { room, run } = startedRoom(3);
+  const [p1, p2, p3] = ['p1', 'p2', 'p3'].map((id) => room.players.get(id));
+  p1.poweredTicks = 100;
+  p1.combo = 0;
+  Object.assign(p2, { sx: p1.sx, sy: p1.sy });
+  run(1);
+  Object.assign(p3, { sx: p1.sx, sy: p1.sy });
+  const before = p1.score;
+  run(1);
+  assert.equal(p1.score - before, 400);
+});
