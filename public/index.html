@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pacmates</title>
+  <link rel="icon" href="assets/image/pacman_icon.png">
+  <style>
+    @font-face {
+      font-family: 'PacmanEmu';
+      src: url('assets/font/emulogic.ttf') format('truetype');
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'PacmanEmu', 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    header { text-align: center; margin-bottom: 20px; }
+    #logo-text { color: #ffe600; font-size: 24px; text-shadow: 0 0 10px rgba(255, 230, 0, 0.5); }
+    .subtitle { color: #888; margin-top: 8px; }
+
+    .card {
+      background: #0d0d1f; border: 2px solid #2121de; border-radius: 12px;
+      padding: 24px; width: 100%; max-width: 560px; text-align: center;
+    }
+    .btn {
+      background: #ffe600; color: #000; border: none; padding: 12px 20px;
+      font-family: inherit; font-size: 12px; border-radius: 6px; cursor: pointer;
+      width: 100%; margin-top: 10px;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn.secondary { background: #00d2ff; }
+    .btn.ghost { background: transparent; color: #888; border: 1px solid #333; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    input[type="text"] {
+      width: 100%; padding: 12px; font-family: inherit; font-size: 18px; text-align: center;
+      text-transform: uppercase; background: #000; border: 1px solid #2121de;
+      color: #ffe600; border-radius: 6px; margin: 10px 0; letter-spacing: 6px;
+    }
+    .or { margin: 16px 0; color: #555; }
+    .room-display {
+      font-size: 32px; letter-spacing: 8px; color: #00ffff;
+      margin: 12px 0; padding: 12px; background: #000; border-radius: 8px;
+    }
+    .player-list { list-style: none; text-align: left; margin: 15px 0; }
+    .player-item {
+      padding: 8px 12px; margin: 6px 0; border-radius: 4px;
+      display: flex; justify-content: space-between;
+    }
+    .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+    .slot {
+      background: #000; border: 2px dashed #2a2a55; border-radius: 10px;
+      padding: 10px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      min-height: 130px; justify-content: center; color: #444; font-size: 10px;
+    }
+    .slot.filled { border-style: solid; }
+    .slot.you { box-shadow: 0 0 12px currentColor; }
+    .slot canvas { width: 64px; height: 64px; background: transparent; }
+    .slot .slot-num { color: #666; font-size: 9px; }
+    .slot .slot-name { font-size: 12px; }
+    .slot .slot-tag { font-size: 9px; color: #aaa; min-height: 12px; }
+    .error { color: #ff5555; min-height: 20px; margin-top: 10px; }
+    .hint { color: #888; margin-top: 10px; }
+
+    #game-view { display: none; flex-direction: column; align-items: center; position: relative; }
+    .scoreboard { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 12px; }
+    .score-tag { padding: 6px 10px; border-radius: 4px; background: #0d0d1f; }
+    canvas { background: #000; border-radius: 6px; image-rendering: pixelated; }
+
+    #game-over {
+      display: none; position: absolute; inset: 40px 0 auto 0; margin: auto;
+      width: 320px; background: rgba(0, 0, 0, 0.92);
+    }
+    #game-over h3 { color: #ffe600; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="logo-text">PACMATES</h1>
+    <p class="subtitle">Online multiplayer for up to 4 mates</p>
+  </header>
+
+  <div id="lobby-card" class="card">
+    <div class="slots" id="slots"></div>
+
+    <div id="setup-view">
+      <button class="btn" id="create-btn">Create Room</button>
+      <div class="or">- OR -</div>
+      <input type="text" id="room-input" maxlength="4" placeholder="CODE" autocomplete="off">
+      <button class="btn secondary" id="join-btn">Join Room</button>
+    </div>
+
+    <div id="room-view" style="display:none;">
+      <div>Room Code</div>
+      <div class="room-display" id="room-code-txt">----</div>
+      <div>Players (<span id="player-count">1</span>/4)</div>
+      <button class="btn" id="start-btn">Start Game</button>
+      <p class="hint" id="waiting-hint" style="display:none;">Waiting for host to start...</p>
+      <button class="btn ghost" id="leave-btn">Leave Room</button>
+    </div>
+
+    <p class="error" id="error-msg" role="alert"></p>
+  </div>
+
+  <div id="game-view">
+    <div class="scoreboard" id="scoreboard"></div>
+    <canvas id="game-canvas" width="528" height="528"></canvas>
+    <p class="hint">Arrow keys or WASD to move</p>
+
+    <div id="game-over" class="card">
+      <h3>GAME OVER</h3>
+      <ul class="player-list" id="standings"></ul>
+      <button class="btn" id="again-btn">Play Again</button>
+      <p class="hint" id="again-hint" style="display:none;">Waiting for host...</p>
+      <button class="btn ghost" id="exit-btn">Back to Lobby</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
