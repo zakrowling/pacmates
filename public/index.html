@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/image/pacman_icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Pixel&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -19,8 +19,8 @@
         radial-gradient(ellipse 50% 45% at 100% 100%, rgba(0, 210, 255, 0.2), transparent 70%);
       background-attachment: fixed;
       color: #fff;
-      font-family: 'Geist', system-ui, -apple-system, sans-serif;
-      font-weight: 500;
+      font-family: 'Geist Pixel', 'Courier New', monospace;
+      font-synthesis: none;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -41,7 +41,7 @@
     }
     .btn {
       background: #ffe600; color: #000; border: none; padding: 12px 20px;
-      font-family: inherit; font-weight: 700; font-size: 15px; border-radius: 6px; cursor: pointer;
+      font-family: inherit; font-size: 15px; border-radius: 6px; cursor: pointer;
       width: 100%; margin-top: 10px;
     }
     .btn:hover { filter: brightness(1.1); }
@@ -103,8 +103,8 @@
     .score-tag.right { flex-direction: row-reverse; }
     .score-tag.empty { visibility: hidden; }
     .score-tag.out { opacity: 0.4; }
-    .score-tag .tag-name { font-size: 11px; font-weight: 600; }
-    .score-tag .tag-score { font-size: 14px; font-weight: 700; color: #fff; }
+    .score-tag .tag-name { font-size: 11px; }
+    .score-tag .tag-score { font-size: 14px; color: #fff; }
     .score-tag .tag-lives { font-size: 10px; letter-spacing: 1px; font-family: sans-serif; }
     canvas { background: #000; border-radius: 6px; image-rendering: pixelated; }
     /* The arena is wider than most game boards; shrink it to fit smaller screens. */
