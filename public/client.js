@@ -313,6 +313,7 @@
     $('game-view').style.display = 'none';
     $('game-over').style.display = 'none';
     $('lobby-card').style.display = 'block';
+    document.body.classList.remove('in-game');
   }
 
   function resetToSetup() {
@@ -414,34 +415,21 @@
     return layer;
   }
 
-  function scoreText(p) {
-    const lives = p.status === 'out' ? 'OUT' : '♥'.repeat(Math.max(0, p.lives));
-    return `${playerLabel(p)}: ${p.score} ${lives}`;
-  }
-
-  function setupScoreboard(players) {
-    $('scoreboard').replaceChildren(...players.map((p) => {
-      const tag = document.createElement('div');
-      tag.className = 'score-tag';
-      tag.id = `score-${p.id}`;
-      tag.style.borderLeft = `4px solid ${p.color}`;
-      tag.style.color = p.color;
-      tag.textContent = scoreText(p);
-      return tag;
-    }));
-  }
-
+  // One panel per spawn corner; a player's panel is chosen by their player number.
   function updateScoreboard(players) {
-    players.forEach((p) => {
-      const tag = $(`score-${p.id}`);
-      if (tag) {
-        tag.textContent = scoreText(p);
-        tag.style.opacity = p.status === 'out' ? 0.4 : 1;
+    document.querySelectorAll('.score-tag[data-slot]').forEach((tag) => {
+      const p = players.find((pl) => pl.number === Number(tag.dataset.slot));
+      tag.classList.toggle('empty', !p);
+      if (!p) return;
+      tag.classList.toggle('out', p.status === 'out');
+      tag.style.color = p.color;
+      if (!tag.firstChild) {
+        tag.innerHTML = '<span class="tag-name"></span><span class="tag-score"></span><span class="tag-lives"></span>';
       }
+      tag.querySelector('.tag-name').textContent = playerLabel(p);
+      tag.querySelector('.tag-score').textContent = p.score;
+      tag.querySelector('.tag-lives').textContent = p.status === 'out' ? 'OUT' : '♥'.repeat(Math.max(0, p.lives));
     });
-    // Remove tags for players who left mid-game.
-    const ids = new Set(players.map((p) => `score-${p.id}`));
-    [...$('scoreboard').children].forEach((el) => { if (!ids.has(el.id)) el.remove(); });
   }
 
   socket.on('gameStarted', (payload) => {
@@ -465,7 +453,8 @@
     $('lobby-card').style.display = 'none';
     $('game-over').style.display = 'none';
     $('game-view').style.display = 'flex';
-    setupScoreboard(payload.players);
+    document.body.classList.add('in-game');
+    updateScoreboard(payload.players);
     playSound('start');
 
     if (!state.rafId) state.rafId = requestAnimationFrame(render);
@@ -557,7 +546,7 @@
   }
 
   function drawNameBubble(p, cx, top) {
-    ctx.font = '9px PacmanEmu, monospace';
+    ctx.font = '7px "Press Start 2P", monospace';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
     const w = ctx.measureText(p.name).width + 14;
@@ -682,7 +671,7 @@
 
     const clock = performance.now();
     state.popups = state.popups.filter((pop) => pop.until > clock);
-    ctx.font = '10px PacmanEmu, monospace';
+    ctx.font = '9px "Press Start 2P", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#00ffff';
