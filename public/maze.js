@@ -25,11 +25,12 @@ const HALF_LAYOUT = [
   '#.####.#.#..#.#.####.#',
   '#......#......#......#',
   '#.##.#.###..###.#.##.#',
-  '#..#.#..........#.#..#',
+  ' ..#.#..........#.#.. ',
   '##.#.###.#..#.###.#.##',
-  ' ........#..#........ ',
+  '#........#..#........#',
   '#.###.##.#..#.##.###.#',
   '#...#............#...#',
+  '#.#.#...#.##.#...#.#.#',
   '###.#.#.######.#.#.###',
   '#o....#........#....o#',
   '#.#######.##.#######.#',
@@ -39,7 +40,7 @@ const HALF_LAYOUT = [
 ];
 
 // Rows where the shared middle wall is opened so players and ghosts can cross between halves.
-const MIDDLE_OPENINGS = [1, 5, 9, 13, 17, 19];
+const MIDDLE_OPENINGS = [1, 5, 9, 13, 18, 20];
 
 // Central ghost house for all 8 ghosts (5x2 inside), with its door at the top and a corridor around it.
 const CENTRE_HOUSE = [
@@ -87,7 +88,7 @@ function openCentreColumn(layout) {
 // Power pellets are placed across the whole arena (replacing the half layout's 'o's) so they're evenly spread.
 const POWER_PELLETS = [
   [1, 5], [11, 5], [31, 5], [41, 5],
-  [1, 17], [11, 17], [31, 17], [41, 17],
+  [1, 18], [11, 18], [31, 18], [41, 18],
 ];
 
 function placePowerPellets(layout, pellets) {

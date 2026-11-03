@@ -39,7 +39,8 @@ test('room codes are 4 letters without I or O', () => {
 
 test('wide maze: 4 outer-corner spawns, one central ghost house, fully connected', () => {
   assert.equal(MAZE.width, 43);
-  assert.deepEqual(MAZE.spawns, [{ x: 1, y: 1 }, { x: 41, y: 1 }, { x: 1, y: 20 }, { x: 41, y: 20 }]);
+  assert.equal(MAZE.height, 23);
+  assert.deepEqual(MAZE.spawns, [{ x: 1, y: 1 }, { x: 41, y: 1 }, { x: 1, y: 21 }, { x: 41, y: 21 }]);
   assert.equal(MAZE.houses.length, 1);
   assert.deepEqual(MAZE.houses[0].exit, { x: 21, y: 10 });
   assert.ok(MAZE.houses[0].tiles.length >= 8);
@@ -86,7 +87,7 @@ test('game starts with players on their corner spawns and 4 ghosts', () => {
   const { last } = startedRoom();
   const payload = last('gameStarted').data;
   const spawns = Object.fromEntries(payload.players.map((p) => [p.number, [p.x, p.y]]));
-  assert.deepEqual(spawns, { 1: [1, 1], 2: [41, 1], 3: [1, 20], 4: [41, 20] });
+  assert.deepEqual(spawns, { 1: [1, 1], 2: [41, 1], 3: [1, 21], 4: [41, 21] });
   assert.equal(payload.ghosts.length, 7);
   assert.equal(new Set(payload.ghosts.map((g) => g.kind)).size, 7);
   assert.equal(payload.tickRate, 30);
@@ -172,7 +173,7 @@ test('mid-game join drops into the free corner without restarting the game', () 
   room.announceJoin('late');
   const late = room.players.get('late');
   assert.equal(late.number, 4);
-  assert.deepEqual(tile(late), [41, 20]);
+  assert.deepEqual(tile(late), [41, 21]);
   assert.ok(late.invulnerableTicks > 0);
   const catchUp = sent.find((m) => m.to === 'late' && m.ev === 'gameStarted');
   assert.ok(catchUp);
@@ -215,22 +216,22 @@ test('game ends when every player is out of lives', () => {
 
 test('tunnel row wraps players from one edge to the other', () => {
   const { room, run } = startedRoom(1);
-  assert.deepEqual(MAZE.tunnelRows, [13]);
+  assert.deepEqual(MAZE.tunnelRows, [Math.floor(MAZE.height / 2)]);
   const p1 = room.players.get('p1');
-  Object.assign(p1, { sx: 1 * S, sy: 13 * S, dir: { x: 0, y: 0 } });
+  Object.assign(p1, { sx: 1 * S, sy: 11 * S, dir: { x: 0, y: 0 } });
   room.input('p1', 'left');
   run(2 * S);
-  assert.deepEqual(tile(p1), [MAZE.width - 1, 13]);
+  assert.deepEqual(tile(p1), [MAZE.width - 1, 11]);
   room.input('p1', 'right');
   run(2 * S);
-  assert.deepEqual(tile(p1), [1, 13]);
+  assert.deepEqual(tile(p1), [1, 11]);
 });
 
 test('ghosts catch players across the tunnel wrap', () => {
   const { room, run } = startedRoom(1);
   const p1 = room.players.get('p1');
-  Object.assign(p1, { sx: 0, sy: 13 * S, dir: { x: 0, y: 0 } });
-  placeGhost(room.ghosts[0], (MAZE.width - 1) * S + 2, 13 * S);
+  Object.assign(p1, { sx: 0, sy: 11 * S, dir: { x: 0, y: 0 } });
+  placeGhost(room.ghosts[0], (MAZE.width - 1) * S + 2, 11 * S);
   room.ghosts[0].dir = { x: 1, y: 0 };
   run(2);
   assert.equal(p1.status, 'dead');
@@ -318,7 +319,7 @@ test('ghost numbers scale with players: 4 for one player, +1 per extra player', 
 
 test('centre column wraps players from the top edge to the bottom and back', () => {
   const { room, run } = startedRoom(1);
-  assert.deepEqual(MAZE.tunnelCols, [21]);
+  assert.deepEqual(MAZE.tunnelCols, [Math.floor(MAZE.width / 2)]);
   const p1 = room.players.get('p1');
   Object.assign(p1, { sx: 21 * S, sy: 1 * S, dir: { x: 0, y: 0 } });
   room.input('p1', 'up');
