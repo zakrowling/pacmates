@@ -20,11 +20,16 @@
   const SPRITE_CELL = 32;
   const PACMAN_DEATH_ROW = 1;
   const PACMAN_DEATH_FRAMES = 13;
+  // Classic four use the sprite sheet rows when available; the extra four are always drawn as vectors.
   const GHOSTS = {
     blinky: { color: '#ff0000', row: 2 },
     pinky: { color: '#ffb8ff', row: 3 },
     inky: { color: '#00ffff', row: 4 },
     clyde: { color: '#ffb852', row: 5 },
+    sue: { color: '#a35cff' },
+    funky: { color: '#33dd66' },
+    spunky: { color: '#b8b8c8' },
+    tim: { color: '#c47a3a' },
   };
   const GHOST_FRAMES = { up: [6, 7], down: [2, 3], left: [4, 5], right: [0, 1] };
   const GHOST_EYES_ROW = 6;
@@ -466,28 +471,19 @@
     lctx.lineWidth = TILE * 0.45 - 6;
     lctx.stroke();
 
-    // Ghost house doors: pink bar across each house edge that leads to its exit.
-    const house = (x, y) => maze.walls[y] && maze.walls[y][x] === 2;
+    // Ghost house doors: pink bar across the doorway between each house and its exit tile.
     lctx.strokeStyle = '#ffb8ff';
     lctx.lineWidth = 3;
     lctx.beginPath();
     maze.houses.forEach(({ door: d, exit: e }) => {
       if (e.y !== d.y) {
-        let x0 = d.x;
-        let x1 = d.x;
-        while (house(x0 - 1, d.y)) x0--;
-        while (house(x1 + 1, d.y)) x1++;
         const y = Math.max(d.y, e.y) * TILE;
-        lctx.moveTo(x0 * TILE + 2, y);
-        lctx.lineTo((x1 + 1) * TILE - 2, y);
+        lctx.moveTo(d.x * TILE + 2, y);
+        lctx.lineTo((d.x + 1) * TILE - 2, y);
       } else {
-        let y0 = d.y;
-        let y1 = d.y;
-        while (house(d.x, y0 - 1)) y0--;
-        while (house(d.x, y1 + 1)) y1++;
         const x = Math.max(d.x, e.x) * TILE;
-        lctx.moveTo(x, y0 * TILE + 2);
-        lctx.lineTo(x, (y1 + 1) * TILE - 2);
+        lctx.moveTo(x, d.y * TILE + 2);
+        lctx.lineTo(x, (d.y + 1) * TILE - 2);
       }
     });
     lctx.stroke();
@@ -649,7 +645,7 @@
     const step = Math.floor(now / 150) % 2;
     const flashWhite = g.flashing && Math.floor(now / 200) % 2;
 
-    if (assets.sprites) {
+    if (assets.sprites && GHOSTS[g.kind].row !== undefined) {
       let row = GHOSTS[g.kind].row;
       let frame = GHOST_FRAMES[g.facing][step];
       if (g.eyes) {
@@ -715,23 +711,34 @@
     });
   }
 
-  function lerpEntity(prev, curr, alpha) {
-    const w = state.maze.width;
-    let dx = curr.x - prev?.x;
-    // Crossing a tunnel jumps from one edge to the other; interpolate the short way round instead.
-    if (dx > w / 2) dx -= w;
-    else if (dx < -w / 2) dx += w;
-    if (!prev || Math.abs(dx) + Math.abs(prev.y - curr.y) > 1) return [curr.x, curr.y];
-    const x = prev.x + dx * alpha;
-    return [((x % w) + w) % w, prev.y + (curr.y - prev.y) * alpha];
+  // Shortest signed step from a to b on a wrapping axis of the given size.
+  function wrapDelta(a, b, size) {
+    let d = b - a;
+    if (d > size / 2) d -= size;
+    else if (d < -size / 2) d += size;
+    return d;
   }
 
-  // Draws an entity, plus a second copy on the far edge while it's partway through a tunnel.
-  function drawWrapped(x, draw) {
-    draw(x);
-    const w = state.maze.width;
-    if (x > w - 1) draw(x - w);
-    else if (x < 0) draw(x + w);
+  function lerpEntity(prev, curr, alpha) {
+    if (!prev) return [curr.x, curr.y];
+    const { width: w, height: h } = state.maze;
+    // Crossing a tunnel jumps from one edge to the other; interpolate the short way round instead.
+    const dx = wrapDelta(prev.x, curr.x, w);
+    const dy = wrapDelta(prev.y, curr.y, h);
+    if (Math.abs(dx) + Math.abs(dy) > 1) return [curr.x, curr.y];
+    const x = prev.x + dx * alpha;
+    const y = prev.y + dy * alpha;
+    return [((x % w) + w) % w, ((y % h) + h) % h];
+  }
+
+  // Draws an entity, plus copies on the far edges while it's partway through a tunnel.
+  function drawWrapped(x, y, draw) {
+    const { width: w, height: h } = state.maze;
+    const xs = [x];
+    const ys = [y];
+    if (x > w - 1) xs.push(x - w);
+    if (y > h - 1) ys.push(y - h);
+    xs.forEach((wx) => ys.forEach((wy) => draw(wx, wy)));
   }
 
   function drawPlayer(p, x, y, now) {
@@ -766,13 +773,13 @@
     state.currPlayers.forEach((p) => {
       if (p.status === 'out') return;
       const [x, y] = lerpEntity(state.prevPlayers.get(p.id), p, alpha);
-      drawWrapped(x, (wx) => drawPlayer(p, wx, y, now));
+      drawWrapped(x, y, (wx, wy) => drawPlayer(p, wx, wy, now));
       positions.push([p, x, y]);
     });
 
     state.currGhosts.forEach((g) => {
       const [x, y] = lerpEntity(state.prevGhosts.get(g.id), g, alpha);
-      drawWrapped(x, (wx) => drawGhost(g, wx * TILE + TILE / 2, y * TILE + TILE / 2, SPRITE_SIZE, now));
+      drawWrapped(x, y, (wx, wy) => drawGhost(g, wx * TILE + TILE / 2, wy * TILE + TILE / 2, SPRITE_SIZE, now));
     });
 
     const clock = performance.now();

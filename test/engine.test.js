@@ -37,10 +37,12 @@ test('room codes are 4 letters without I or O', () => {
   assert.throws(() => generateRoomCode(() => true));
 });
 
-test('wide maze: 4 outer-corner spawns, two ghost houses, fully connected', () => {
+test('wide maze: 4 outer-corner spawns, one central ghost house, fully connected', () => {
   assert.equal(MAZE.width, 43);
   assert.deepEqual(MAZE.spawns, [{ x: 1, y: 1 }, { x: 41, y: 1 }, { x: 1, y: 20 }, { x: 41, y: 20 }]);
-  assert.deepEqual(MAZE.houses.map((h) => h.exit), [{ x: 10, y: 9 }, { x: 31, y: 9 }]);
+  assert.equal(MAZE.houses.length, 1);
+  assert.deepEqual(MAZE.houses[0].exit, { x: 21, y: 10 });
+  assert.ok(MAZE.houses[0].tiles.length >= 8);
 
   const open = (x, y) => MAZE.walls[y] && MAZE.walls[y][(x + MAZE.width) % MAZE.width] === 0;
   const seen = new Set(['1,1']);
@@ -85,8 +87,8 @@ test('game starts with players on their corner spawns and 4 ghosts', () => {
   const payload = last('gameStarted').data;
   const spawns = Object.fromEntries(payload.players.map((p) => [p.number, [p.x, p.y]]));
   assert.deepEqual(spawns, { 1: [1, 1], 2: [41, 1], 3: [1, 20], 4: [41, 20] });
-  assert.equal(payload.ghosts.length, 8);
-  assert.equal(new Set(payload.ghosts.map((g) => g.id)).size, 8);
+  assert.equal(payload.ghosts.length, 7);
+  assert.equal(new Set(payload.ghosts.map((g) => g.kind)).size, 7);
   assert.equal(payload.tickRate, 30);
 });
 
@@ -151,8 +153,10 @@ test('released ghosts leave the house and never enter walls', () => {
   for (let i = 0; i < 300; i++) {
     run(1);
     for (const g of room.ghosts) {
-      for (const [x, y] of [[Math.floor(g.sx / S), Math.floor(g.sy / S)], [Math.ceil(g.sx / S), Math.ceil(g.sy / S)]]) {
-        assert.notEqual(MAZE.walls[y][x], 1, `${g.name} in wall at ${x},${y}`);
+      const wrap = (n, size) => ((n % size) + size) % size;
+      for (const [fx, fy] of [[Math.floor(g.sx / S), Math.floor(g.sy / S)], [Math.ceil(g.sx / S), Math.ceil(g.sy / S)]]) {
+        const [x, y] = [wrap(fx, MAZE.width), wrap(fy, MAZE.height)];
+        assert.notEqual(MAZE.walls[y][x], 1, `${g.kind} in wall at ${x},${y}`);
       }
     }
   }
@@ -242,18 +246,17 @@ test('a preferred name is kept when free, otherwise a random one is used', () =>
   assert.match(room.players.get('c').name, /^[A-Z]{4}$/);
 });
 
-test('each ghost family leaves and returns to its own house', () => {
+test('eaten ghosts return to the central house and revive there', () => {
   const { room, run } = startedRoom(1);
-  const right = room.ghosts.find((g) => g.id === 'blinky-1');
-  assert.deepEqual([right.def.house.exit.x, right.def.house.exit.y], [31, 9]);
-  Object.assign(right, { def: { ...right.def, releaseTick: 0 }, inHouse: false, eyes: true, sx: 38 * S, sy: 9 * S, dir: { x: 0, y: 0 } });
+  const ghost = room.ghosts[0];
+  Object.assign(ghost, { def: { ...ghost.def, releaseTick: 0 }, inHouse: false, eyes: true, sx: 38 * S, sy: 9 * S, dir: { x: 0, y: 0 } });
   room.players.get('p1').invulnerableTicks = 1e9;
   let ticks = 0;
-  while (right.eyes && ticks++ < 300) run(1);
-  assert.equal(right.eyes, false);
-  assert.ok(right.sx / S >= 30 && right.sx / S <= 32, `revived at x=${right.sx / S}`);
+  while (ghost.eyes && ticks++ < 400) run(1);
+  assert.equal(ghost.eyes, false);
+  const x = ghost.sx / S;
+  assert.ok(x >= 19 && x <= 23, `revived at x=${x}`);
 });
-
 test('a powered Pac-Man eats an un-powered one, who respawns at their corner keeping their lives', () => {
   const { room, run, sent } = startedRoom(2);
   const [p1, p2] = [room.players.get('p1'), room.players.get('p2')];
@@ -303,4 +306,27 @@ test('eating several things in one power-up doubles the points', () => {
   const before = p1.score;
   run(1);
   assert.equal(p1.score - before, 400);
+});
+
+test('ghost numbers scale with players: 4 for one player, +1 per extra player', () => {
+  for (const [players, ghosts] of [[1, 4], [2, 5], [3, 6], [4, 7]]) {
+    const { room } = startedRoom(players);
+    assert.equal(room.ghosts.length, ghosts, `${players} players`);
+    assert.equal(new Set(room.ghosts.map((g) => g.kind)).size, ghosts);
+  }
+});
+
+test('centre column wraps players from the top edge to the bottom and back', () => {
+  const { room, run } = startedRoom(1);
+  assert.deepEqual(MAZE.tunnelCols, [21]);
+  const p1 = room.players.get('p1');
+  Object.assign(p1, { sx: 21 * S, sy: 1 * S, dir: { x: 0, y: 0 } });
+  room.input('p1', 'up');
+  run(2 * S);
+  assert.deepEqual(tile(p1), [21, MAZE.height - 1]);
+  run(S);
+  assert.deepEqual(tile(p1), [21, MAZE.height - 2]);
+  room.input('p1', 'down');
+  run(3 * S);
+  assert.deepEqual(tile(p1), [21, 1]);
 });

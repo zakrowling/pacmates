@@ -8,9 +8,11 @@
 //   .  dot
 //   o  power pellet (frightens ghosts)
 //   G  ghost house (ghosts only)
-//   ' ' empty floor. A floor tile on the left/right edge is a tunnel that wraps to the other side.
+//   ' ' empty floor. A floor tile on an outer edge is a tunnel that wraps to the opposite edge
+//       (left <-> right on the tunnel row, top <-> bottom in the centre column).
 //   1-4  spawn point for Player 1-4 (no dot)
-// This is one half of the arena; buildWideLayout() places two copies side by side.
+// This is one half of the arena; buildWideLayout() places two copies side by side and
+// CENTRE_HOUSE is stamped over the middle so every ghost starts in one shared house.
 const HALF_LAYOUT = [
   '######################',
   '#1....#........#....2#',
@@ -19,8 +21,8 @@ const HALF_LAYOUT = [
   '#.#.##.###..###.##.#.#',
   '#o.....#......#.....o#',
   '###.##.#.####.#.##.###',
-  '#........#GG#........#',
-  '#.####.#.#GG#.#.####.#',
+  '#........#..#........#',
+  '#.####.#.#..#.#.####.#',
   '#......#......#......#',
   '#.##.#.###..###.#.##.#',
   '#..#.#..........#.#..#',
@@ -39,6 +41,25 @@ const HALF_LAYOUT = [
 // Rows where the shared middle wall is opened so players and ghosts can cross between halves.
 const MIDDLE_OPENINGS = [1, 5, 9, 13, 17, 19];
 
+// Central ghost house for all 8 ghosts (5x2 inside), with its door at the top and a corridor around it.
+const CENTRE_HOUSE = [
+  '.........',
+  '.### ###.',
+  '.#GGGGG#.',
+  '.#GGGGG#.',
+  '.#######.',
+  '.........',
+];
+const CENTRE_HOUSE_TOP = 9;
+
+function stampCentre(layout, block, top) {
+  const left = Math.floor((layout[0].length - block[0].length) / 2);
+  return layout.map((row, y) => {
+    const b = block[y - top];
+    return b === undefined ? row : row.slice(0, left) + b + row.slice(left + b.length);
+  });
+}
+
 // Joins two copies of the half layout, sharing one wall column down the middle.
 // Players 1 and 3 keep the left half's corners; players 2 and 4 take the right half's corners.
 function buildWideLayout(half, openings) {
@@ -50,7 +71,22 @@ function buildWideLayout(half, openings) {
   });
 }
 
-const MAZE_LAYOUT = buildWideLayout(HALF_LAYOUT, MIDDLE_OPENINGS);
+// Opens a one-tile vertical tunnel down the centre column: through the top and bottom walls,
+// plus the bottom-row wall below the central corridor.
+function openCentreColumn(layout) {
+  const x = Math.floor(layout[0].length / 2);
+  const last = layout.length - 1;
+  const setAt = (row, ch) => row.slice(0, x) + ch + row.slice(x + 1);
+  return layout.map((row, y) => {
+    if (y === 0 || y === last) return setAt(row, ' ');
+    if (y === last - 1 && row[x] === '#') return setAt(row, '.');
+    return row;
+  });
+}
+
+const MAZE_LAYOUT = openCentreColumn(
+  stampCentre(buildWideLayout(HALF_LAYOUT, MIDDLE_OPENINGS), CENTRE_HOUSE, CENTRE_HOUSE_TOP),
+);
 
 const TILE = { FLOOR: 0, WALL: 1, HOUSE: 2 };
 const PELLET = { NONE: 0, DOT: 1, POWER: 2 };
@@ -127,7 +163,15 @@ function parseMaze(layout) {
     }
   });
 
-  return { width, height, walls, dots, spawns, houses, tunnelRows };
+  const tunnelCols = [];
+  walls[0].forEach((t, x) => {
+    if (t === TILE.FLOOR || walls[height - 1][x] === TILE.FLOOR) {
+      if (t !== walls[height - 1][x]) throw new Error(`Tunnel in column ${x} must be open at top and bottom`);
+      tunnelCols.push(x);
+    }
+  });
+
+  return { width, height, walls, dots, spawns, houses, tunnelRows, tunnelCols };
 }
 
 return { HALF_LAYOUT, MAZE_LAYOUT, TILE, PELLET, parseMaze, buildWideLayout };

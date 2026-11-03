@@ -36,37 +36,52 @@
   const GHOST_DIR_ORDER = [DIRECTIONS.up, DIRECTIONS.left, DIRECTIONS.down, DIRECTIONS.right];
 
   const MAZE = parseMaze(MAZE_LAYOUT);
+  const MID_X = Math.floor(MAZE.width / 2);
+  const MID_Y = Math.floor(MAZE.height / 2);
+  // Eight ghosts share the central house. Each has its own colour (client side), its own patch of the
+  // maze to scatter to, and its own chase style, and they leave the house one after another.
   const GHOST_KINDS = [
-    { kind: 'blinky', releaseTick: 0, corner: ['right', 'top'] },
-    { kind: 'pinky', releaseTick: 3 * TICK_RATE, corner: ['left', 'top'] },
-    { kind: 'inky', releaseTick: 8 * TICK_RATE, corner: ['right', 'bottom'] },
-    { kind: 'clyde', releaseTick: 13 * TICK_RATE, corner: ['left', 'bottom'] },
+    { kind: 'blinky', scatter: { x: MAZE.width - 1, y: -2 } }, // chases directly; top-right
+    { kind: 'pinky', scatter: { x: 0, y: -2 } }, // ambushes ahead; top-left
+    { kind: 'inky', scatter: { x: MAZE.width - 1, y: MAZE.height + 1 } }, // flanks off Blinky; bottom-right
+    { kind: 'clyde', scatter: { x: 0, y: MAZE.height + 1 } }, // chases until close, then retreats; bottom-left
+    { kind: 'sue', scatter: { x: MID_X, y: -2 } }, // sneaks up from behind; top-middle
+    { kind: 'funky', scatter: { x: MID_X, y: MAZE.height + 1 } }, // unpredictable wanderer; bottom-middle
+    { kind: 'spunky', scatter: { x: -2, y: MID_Y } }, // patrols, only chases when close; far left
+    { kind: 'tim', scatter: { x: MAZE.width + 1, y: MID_Y } }, // cuts players off far ahead; far right
   ];
-  // One family of four ghosts per ghost house; each family scatters to the corners of its own section.
-  const GHOST_DEFS = MAZE.houses.flatMap((house, family) => {
-    const x0 = Math.round((family * MAZE.width) / MAZE.houses.length);
-    const x1 = Math.round(((family + 1) * MAZE.width) / MAZE.houses.length) - 1;
-    return GHOST_KINDS.map((k, i) => ({
-      id: `${k.kind}-${family}`,
+  const RELEASE_INTERVAL_TICKS = 2 * TICK_RATE;
+  // More players, more ghosts: 4 for one player, plus one per extra player.
+  const ghostCountFor = (players) => Math.min(GHOST_KINDS.length, 3 + Math.max(1, players));
+  const GHOST_DEFS = GHOST_KINDS.map((k, index) => {
+    const house = MAZE.houses[index % MAZE.houses.length];
+    return {
+      id: k.kind,
       kind: k.kind,
-      family,
+      index,
       house,
-      home: house.tiles[i % house.tiles.length],
-      releaseTick: k.releaseTick,
-      scatter: { x: k.corner[0] === 'left' ? x0 : x1, y: k.corner[1] === 'top' ? -2 : MAZE.height + 1 },
-    }));
+      home: house.tiles[Math.floor(index / MAZE.houses.length) % house.tiles.length],
+      releaseTick: index * RELEASE_INTERVAL_TICKS,
+      scatter: k.scatter,
+    };
   });
 
-  const WRAP_STEPS = MAZE.width * STEPS_PER_TILE;
+  const mod = (n, m) => ((n % m) + m) % m;
   const randInt = (n) => Math.floor(Math.random() * n);
-  const wrapX = (x) => ((x % MAZE.width) + MAZE.width) % MAZE.width;
-  const wrapSteps = (sx) => ((sx % WRAP_STEPS) + WRAP_STEPS) % WRAP_STEPS;
-  // Horizontal distance the short way round, so tunnels count as adjacent.
-  const wrapDx = (a, b) => {
+  // Tunnels wrap left <-> right and top <-> bottom.
+  const wrapX = (x) => mod(x, MAZE.width);
+  const wrapY = (y) => mod(y, MAZE.height);
+  const wrapStepsX = (sx) => mod(sx, MAZE.width * STEPS_PER_TILE);
+  const wrapStepsY = (sy) => mod(sy, MAZE.height * STEPS_PER_TILE);
+  // Distance the short way round, so tunnels count as adjacent.
+  const wrapDist = (a, b, size) => {
     const d = Math.abs(a - b);
-    return Math.min(d, MAZE.width - d);
+    return Math.min(d, size - d);
   };
-  const isTunnelTile = (x, y) => (x === 0 || x === MAZE.width - 1) && MAZE.walls[y][x] === TILE.FLOOR;
+  const wrapDx = (a, b) => wrapDist(a, b, MAZE.width);
+  const wrapDy = (a, b) => wrapDist(a, b, MAZE.height);
+  const onEdge = (x, y) => x === 0 || y === 0 || x === MAZE.width - 1 || y === MAZE.height - 1;
+  const isTunnelTile = (x, y) => onEdge(x, y) && MAZE.walls[y][x] === TILE.FLOOR;
   const tileOf = (e) => ({ x: e.sx / STEPS_PER_TILE, y: e.sy / STEPS_PER_TILE });
   const atTileCentre = (e) => e.sx % STEPS_PER_TILE === 0 && e.sy % STEPS_PER_TILE === 0;
   const facingOf = (dir) => Object.keys(DIRECTIONS).find((k) => DIRECTIONS[k].x === dir.x && DIRECTIONS[k].y === dir.y);
@@ -82,11 +97,11 @@
   }
 
   function isOpenForPlayer(x, y) {
-    return MAZE.walls[y] !== undefined && MAZE.walls[y][wrapX(x)] === TILE.FLOOR;
+    return MAZE.walls[wrapY(y)][wrapX(x)] === TILE.FLOOR;
   }
 
   function isOpenForGhost(g, x, y) {
-    const t = MAZE.walls[y] && MAZE.walls[y][wrapX(x)];
+    const t = MAZE.walls[wrapY(y)][wrapX(x)];
     if (t === TILE.FLOOR) return true;
     return t === TILE.HOUSE && (g.eyes || g.inHouse);
   }
@@ -149,8 +164,8 @@
 
   // ---------- Ghosts ----------
 
-  function createGhosts() {
-    return GHOST_DEFS.map((def) => {
+  function createGhosts(playerCount) {
+    return GHOST_DEFS.slice(0, ghostCountFor(playerCount)).map((def) => {
       return {
         def,
         id: def.id,
@@ -242,7 +257,7 @@
       this.modeIndex = 0;
       this.modeTicks = 0;
       this.frightenedTicks = 0;
-      this.ghosts = createGhosts();
+      this.ghosts = createGhosts(this.players.size);
       this.started = true;
       this.players.forEach(resetPlayerForGame);
 
@@ -285,6 +300,7 @@
           spawns: MAZE.spawns,
           houses: MAZE.houses.map((h) => ({ door: h.door, exit: h.exit })),
           tunnelRows: MAZE.tunnelRows,
+          tunnelCols: MAZE.tunnelCols,
         },
         tickRate: TICK_RATE,
         ghosts: this.ghosts.map((g) => this.serializeGhost(g)),
@@ -341,8 +357,8 @@
       }
 
       if (p.dir.x || p.dir.y) {
-        p.sx = wrapSteps(p.sx + p.dir.x);
-        p.sy += p.dir.y;
+        p.sx = wrapStepsX(p.sx + p.dir.x);
+        p.sy = wrapStepsY(p.sy + p.dir.y);
         p.facing = facingOf(p.dir);
       }
 
@@ -371,43 +387,45 @@
       });
     }
 
-    nearestAlivePlayer(from) {
-      let best = null;
-      let bestDist = Infinity;
-      this.players.forEach((p) => {
-        if (p.status !== 'alive') return;
-        const t = tileOf(p);
-        const d = (t.x - from.x) ** 2 + (t.y - from.y) ** 2;
-        if (d < bestDist) {
-          bestDist = d;
-          best = { ...t, dir: p.dir.x || p.dir.y ? p.dir : DIRECTIONS[p.facing] };
-        }
-      });
-      return best;
+    // Ghosts share out the players (ghost 1 -> player 1, ghost 2 -> player 2, ...) so they spread
+    // across the maze instead of all hunting whoever is closest.
+    assignedPrey(g) {
+      const alive = [...this.players.values()].filter((p) => p.status === 'alive').sort((a, b) => a.number - b.number);
+      if (!alive.length) return null;
+      const p = alive[g.def.index % alive.length];
+      return { ...tileOf(p), dir: p.dir.x || p.dir.y ? p.dir : DIRECTIONS[p.facing] };
     }
 
-    // Classic arcade targeting: Blinky chases, Pinky ambushes ahead, Inky flanks off Blinky, Clyde gets shy up close.
+    isChasing() {
+      return MODE_SCHEDULE[this.modeIndex][0] === 'chase';
+    }
+
     ghostTarget(g, tile) {
       if (g.eyes) return g.def.house.door;
       if (g.inHouse) return g.def.house.exit;
-      const mode = MODE_SCHEDULE[this.modeIndex][0];
-      const prey = this.nearestAlivePlayer(tile);
-      if (mode === 'scatter' || !prey) return g.def.scatter;
+      const prey = this.assignedPrey(g);
+      if (!this.isChasing() || !prey) return g.def.scatter;
+      const distSq = (prey.x - tile.x) ** 2 + (prey.y - tile.y) ** 2;
 
       switch (g.kind) {
         case 'pinky':
           return { x: prey.x + prey.dir.x * 4, y: prey.y + prey.dir.y * 4 };
         case 'inky': {
-          const partner = this.ghosts.find((o) => o.kind === 'blinky' && o.def.family === g.def.family) || g;
-          const blinky = tileOf(partner);
+          const blinky = tileOf(this.ghosts.find((o) => o.kind === 'blinky') || g);
           const ax = prey.x + prey.dir.x * 2;
           const ay = prey.y + prey.dir.y * 2;
           return { x: 2 * ax - blinky.x, y: 2 * ay - blinky.y };
         }
         case 'clyde':
-          return (prey.x - tile.x) ** 2 + (prey.y - tile.y) ** 2 > 64 ? prey : g.def.scatter;
+          return distSq > 64 ? prey : g.def.scatter;
+        case 'sue':
+          return { x: prey.x - prey.dir.x * 4, y: prey.y - prey.dir.y * 4 };
+        case 'spunky':
+          return distSq < 64 ? prey : g.def.scatter;
+        case 'tim':
+          return { x: prey.x + prey.dir.x * 8, y: prey.y + prey.dir.y * 8 };
         default:
-          return prey;
+          return prey; // blinky, and funky when it isn't wandering
       }
     }
 
@@ -417,7 +435,9 @@
       if (!options.length) options = GHOST_DIR_ORDER.filter(canGo);
       if (!options.length) return { x: 0, y: 0 };
 
-      if (g.frightened && !g.inHouse) return options[randInt(options.length)];
+      // Frightened ghosts flee at random; Funky also wanders randomly half the time while chasing.
+      const wandering = g.kind === 'funky' && this.isChasing() && Math.random() < 0.5;
+      if ((g.frightened || wandering) && !g.inHouse && !g.eyes) return options[randInt(options.length)];
 
       const target = this.ghostTarget(g, tile);
       let best = options[0];
@@ -450,8 +470,8 @@
         g.dir = this.chooseGhostDir(g, tile);
       }
       if (g.dir.x || g.dir.y) {
-        g.sx = wrapSteps(g.sx + g.dir.x);
-        g.sy += g.dir.y;
+        g.sx = wrapStepsX(g.sx + g.dir.x);
+        g.sy = wrapStepsY(g.sy + g.dir.y);
         g.facing = facingOf(g.dir);
       }
     }
@@ -463,7 +483,7 @@
       else if (g.inHouse) speed = GHOST_SPEED.house;
       else if (g.frightened) speed = GHOST_SPEED.frightened;
       // Ghosts crawl through tunnels, as in the arcade.
-      if (!g.eyes && isTunnelTile(wrapX(Math.round(g.sx / STEPS_PER_TILE)), Math.round(g.sy / STEPS_PER_TILE))) {
+      if (!g.eyes && isTunnelTile(wrapX(Math.round(g.sx / STEPS_PER_TILE)), wrapY(Math.round(g.sy / STEPS_PER_TILE)))) {
         speed = Math.min(speed, GHOST_SPEED.tunnel);
       }
 
@@ -506,7 +526,7 @@
         for (const g of this.ghosts) {
           if (g.eyes || this.tick < g.def.releaseTick) continue;
           const gt = tileOf(g);
-          if (wrapDx(pt.x, gt.x) + Math.abs(pt.y - gt.y) >= 0.75) continue;
+          if (wrapDx(pt.x, gt.x) + wrapDy(pt.y, gt.y) >= 0.75) continue;
 
           if (g.frightened) {
             const points = GHOST_SCORE * 2 ** Math.min(p.combo, 3);
@@ -539,7 +559,7 @@
           if (prey === eater || prey.status !== 'alive' || prey.poweredTicks > 0 || prey.invulnerableTicks > 0) continue;
           const a = tileOf(eater);
           const b = tileOf(prey);
-          if (wrapDx(a.x, b.x) + Math.abs(a.y - b.y) >= 0.75) continue;
+          if (wrapDx(a.x, b.x) + wrapDy(a.y, b.y) >= 0.75) continue;
 
           const points = GHOST_SCORE * 2 ** Math.min(eater.combo, 3);
           eater.combo++;
