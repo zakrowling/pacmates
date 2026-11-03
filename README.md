@@ -10,8 +10,8 @@ Online multiplayer Pac-Man for up to 4 mates. Play it at **https://zakrowling.gi
 - **Name bubbles**: each Pac-Man has its name floating above it in game. Yours is yellow with black text; everyone else's is black with white text.
 - **Tunnels**: like the arcade, the middle-left and middle-right edges are joined, and a one-tile gap in the centre of the top and bottom walls joins those too. Go off one side and you come back on the other. Ghosts slow down in tunnels.
 - **Ghosts**: they start together in the central house and leave one at a time. There are 4 ghosts for one player plus one per extra player (up to 7); someone joining mid-game brings the next ghost with them: red Blinky, pink Pinky, cyan Inky, orange Clyde, purple Sue, green Funky and grey Spunky (brown Tim is defined for an 8th). Each heads for its own patch of the maze, chases a different player, and has its own style: chasing, ambushing ahead, flanking, sneaking up from behind, wandering, patrolling or cutting players off.
-- **Power pellets**: eating one of the 8 power pellets turns the ghosts blue for 6 seconds. While powered up you glow and can also eat other Pac-Men who aren't powered up; they go back to their corner without losing a life. Each ghost or player you eat in one power-up scores 200, 400, 800, then 1600 points.
-- **Lives**: each player has 5 lives. After being caught you respawn in your corner and can't be caught for a moment. The game ends when the maze is cleared or everyone is out.
+- **Power pellets**: eating one of the 8 power pellets turns the ghosts blue for 6 seconds. Eaten power pellets come back in the same spot 20 seconds later. While powered up you glow and can also eat other Pac-Men who aren't powered up; they go back to their corner without losing a life. Each ghost or player you eat in one power-up scores 200, 400, 800, then 1600 points.
+- **Lives**: each player has 5 lives. After being caught you respawn in your corner and can't be caught for a moment. The game ends when all the regular dots are eaten or everyone is out.
 
 ## How it works
 

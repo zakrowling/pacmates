@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S, START_LIVES } = require('../public/engine.js');
+const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S, START_LIVES, POWER_RESPAWN_TICKS } = require('../public/engine.js');
 
 // Builds a room with a manual clock and records every message it sends.
 function makeRoom() {
@@ -176,7 +176,7 @@ test('mid-game join drops into the free corner without restarting the game', () 
   assert.ok(late.invulnerableTicks > 0);
   const catchUp = sent.find((m) => m.to === 'late' && m.ev === 'gameStarted');
   assert.ok(catchUp);
-  assert.equal(catchUp.data.maze.dots.flat().filter(Boolean).length, room.dotsRemaining);
+  assert.equal(catchUp.data.maze.dots.flat().filter((d) => d === PELLET.DOT).length, room.dotsRemaining);
   run(5);
   assert.equal(room.tick, tickBefore + 5);
   assert.equal(room.started, true);
@@ -352,4 +352,28 @@ test('players start with 5 lives', () => {
   const { room } = startedRoom(2);
   assert.equal(START_LIVES, 5);
   room.players.forEach((p) => assert.equal(p.lives, 5));
+});
+
+test('eaten power pellets come back in the same spot after a while', () => {
+  const { room, run, sent } = startedRoom(1);
+  room.dots[1][1] = PELLET.POWER;
+  run(1);
+  assert.equal(room.dots[1][1], PELLET.NONE);
+  room.players.get('p1').sx = 3 * S; // step off the spot
+  run(POWER_RESPAWN_TICKS - 2);
+  assert.equal(room.dots[1][1], PELLET.NONE);
+  run(2);
+  assert.equal(room.dots[1][1], PELLET.POWER);
+  assert.ok(sent.some((m) => m.ev === 'state' && m.data.events.some((e) => e.type === 'pelletRespawn' && e.x === 1 && e.y === 1)));
+});
+
+test('the maze is cleared once the regular dots are gone, even with power pellets left', () => {
+  const { room, run, last } = startedRoom(1);
+  assert.equal(room.dotsRemaining, MAZE.dots.flat().filter((d) => d === PELLET.DOT).length);
+  room.dots = room.dots.map((row) => row.map((d) => (d === PELLET.POWER ? d : PELLET.NONE)));
+  room.dots[1][2] = PELLET.DOT;
+  room.dotsRemaining = 1;
+  room.input('p1', 'right');
+  run(10);
+  assert.equal(last('gameOver').data.reason, 'cleared');
 });

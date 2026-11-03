@@ -17,6 +17,7 @@
   const INVULNERABLE_TICKS = 75;
   const FRIGHTENED_TICKS = 6 * TICK_RATE;
   const FLASH_TICKS = 2 * TICK_RATE;
+  const POWER_RESPAWN_TICKS = 20 * TICK_RATE; // eaten power pellets come back in the same spot
   const GHOST_SPEED = { normal: 0.85, frightened: 0.5, eyes: 2, house: 0.5, tunnel: 0.45 };
   const MODE_SCHEDULE = [['scatter', 7], ['chase', 20], ['scatter', 7], ['chase', 20], ['scatter', 5], ['chase', Infinity]];
   const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O to avoid confusion with 1/0
@@ -203,7 +204,8 @@
       this.loop = null;
       this.tick = 0;
       this.dots = null;
-      this.dotsRemaining = 0;
+      this.dotsRemaining = 0; // regular dots only; power pellets respawn so they don't count
+      this.powerRespawns = [];
       this.modeIndex = 0;
       this.modeTicks = 0;
       this.frightenedTicks = 0;
@@ -263,7 +265,8 @@
     start(requesterId) {
       if (this.started || !this.players.has(requesterId)) return false;
       this.dots = MAZE.dots.map((row) => [...row]);
-      this.dotsRemaining = this.dots.flat().filter(Boolean).length;
+      this.dotsRemaining = this.dots.flat().filter((d) => d === PELLET.DOT).length;
+      this.powerRespawns = [];
       this.tick = 0;
       this.modeIndex = 0;
       this.modeTicks = 0;
@@ -337,6 +340,7 @@
       this.resolveCollisions(events);
       this.ghosts.forEach((g) => this.stepGhost(g));
       this.resolveCollisions(events);
+      this.respawnPowerPellets(events);
 
       this.broadcast('state', {
         tick: this.tick,
@@ -347,6 +351,15 @@
 
       const everyoneOut = this.players.size > 0 && [...this.players.values()].every((p) => p.status === 'out');
       if (this.dotsRemaining <= 0 || everyoneOut) this.endGame(everyoneOut ? 'ghosts' : 'cleared');
+    }
+
+    respawnPowerPellets(events) {
+      this.powerRespawns = this.powerRespawns.filter(({ x, y, tick }) => {
+        if (this.tick < tick) return true;
+        this.dots[y][x] = PELLET.POWER;
+        events.push({ type: 'pelletRespawn', x, y });
+        return false;
+      });
     }
 
     endGame(reason) {
@@ -378,7 +391,8 @@
       const pellet = this.dots[t.y][t.x];
       if (pellet === PELLET.NONE) return;
       this.dots[t.y][t.x] = PELLET.NONE;
-      this.dotsRemaining--;
+      if (pellet === PELLET.DOT) this.dotsRemaining--;
+      else this.powerRespawns.push({ x: t.x, y: t.y, tick: this.tick + POWER_RESPAWN_TICKS });
       p.score += pellet === PELLET.POWER ? POWER_SCORE : DOT_SCORE;
       events.push({ type: 'pellet', x: t.x, y: t.y, by: p.id, power: pellet === PELLET.POWER });
       if (pellet === PELLET.POWER) {
@@ -594,5 +608,6 @@
     STEPS_PER_TILE,
     MAX_PLAYERS,
     START_LIVES,
+    POWER_RESPAWN_TICKS,
   };
 });

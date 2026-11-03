@@ -547,7 +547,9 @@
 
     snapshot.events.forEach((ev) => {
       const mine = ev.by === state.playerId;
-      if (ev.type === 'pellet') {
+      if (ev.type === 'pelletRespawn') {
+        state.maze.dots[ev.y][ev.x] = 2;
+      } else if (ev.type === 'pellet') {
         state.maze.dots[ev.y][ev.x] = 0;
         if (mine && ev.power) playSound('power');
         else if (mine && now - state.lastEatSoundAt > 120) {
