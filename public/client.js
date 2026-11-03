@@ -345,13 +345,14 @@
     $('create-btn').disabled = connecting;
     $('join-btn').disabled = connecting;
     if (connecting) showError('');
+    $('connecting-hint').textContent = 'Connecting...';
     $('connecting-hint').style.display = connecting ? 'block' : 'none';
   }
 
   function handleJoinResponse(res) {
     setConnecting(false);
     if (!res.ok) {
-      if ($('room-view').style.display === 'block') resetToSetup();
+      if (state.linkRoom || $('room-view').style.display === 'block') resetToSetup();
       return showError(res.error);
     }
     showError('');
@@ -389,6 +390,11 @@
   socket.on('disconnect', (reason) => {
     resetToSetup();
     showError(reason || 'Disconnected.');
+  });
+  // Progress through connection steps, so a stuck step is visible instead of a bare "Connecting...".
+  socket.on('status', (text) => {
+    if ($('connecting-hint').style.display === 'block') $('connecting-hint').textContent = text;
+    if ($('reconnect-hint').style.display === 'block') $('reconnect-hint').textContent = text;
   });
   socket.on('reconnecting', (message) => {
     showLobby();

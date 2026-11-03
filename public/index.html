@@ -31,9 +31,8 @@
     header { text-align: center; margin-bottom: 20px; }
     #logo { display: block; width: 100%; max-width: 440px; height: auto; margin: 0 auto; }
     .subtitle { color: #888; margin-top: 4px; }
-    body.in-game header { margin-bottom: 10px; }
-    body.in-game #logo { max-width: 260px; }
-    body.in-game .subtitle { display: none; }
+    /* Hide the logo while playing so the maze sits at the top of the screen. */
+    body.in-game header { display: none; }
 
     .card {
       background: #0d0d1f; border: 2px solid #2121de; border-radius: 12px;

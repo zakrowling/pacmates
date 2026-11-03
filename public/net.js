@@ -8,6 +8,10 @@
 (function () {
   const PEER_PREFIX = 'pacmates-v1-';
   const CONNECT_TIMEOUT_MS = 12000;
+  const SERVER_UNREACHABLE =
+    "Couldn't reach the PeerJS matchmaking server. A work network, VPN or ad blocker may be blocking it.";
+  const HOST_UNREACHABLE =
+    "Found the room but couldn't connect to the host. A firewall or VPN may be blocking peer-to-peer connections.";
   const ENTER_ROOM_DEADLINE_MS = 45000; // a crashed host's ID can stay reserved on the PeerJS server for a while
   const HANDOVER_STAGGER_MS = 1500;
   const ROOM_NAME_RE = /^[A-Z0-9](?:[A-Z0-9-]{0,14}[A-Z0-9])$/;
@@ -121,11 +125,18 @@
     function createRoom(ack, attempt = 0, fixedCode = null, preferredName) {
       teardown();
       const code = fixedCode || generateRoomCode();
+      dispatch('status', fixedCode ? 'Opening the room...' : 'Connecting to the matchmaking server...');
       const p = new Peer(PEER_PREFIX + code, { debug: 0 });
       peer = p;
+      const timer = setTimeout(() => {
+        if (peer !== p || mode === 'host') return;
+        teardown();
+        ack({ ok: false, error: SERVER_UNREACHABLE });
+      }, CONNECT_TIMEOUT_MS);
 
       p.on('open', (id) => {
         if (peer !== p) return;
+        clearTimeout(timer);
         mode = 'host';
         localId = id;
         ticker = createTicker();
@@ -145,6 +156,7 @@
       p.on('error', (err) => {
         if (peer !== p) return;
         if (mode === 'host') return console.warn('PeerJS error', err);
+        clearTimeout(timer);
         if (err.type === 'unavailable-id') {
           if (fixedCode) {
             teardown();
@@ -153,7 +165,8 @@
           if (attempt < 5) return createRoom(ack, attempt + 1, null, preferredName);
         }
         teardown();
-        ack({ ok: false, error: `Couldn't create a room (${err.type || err.message}). Check your connection.` });
+        const unreachable = ['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type);
+        ack({ ok: false, error: unreachable ? SERVER_UNREACHABLE : `Couldn't create a room (${err.type || err.message}).` });
       });
     }
 
@@ -162,6 +175,8 @@
     function joinRoom(code, ack, preferredName) {
       teardown();
       let settled = false;
+      let stage = 'server'; // 'server' until PeerJS opens, then 'host' until the host answers
+      dispatch('status', 'Connecting to the matchmaking server...');
       const p = new Peer({ debug: 0 });
       peer = p;
 
@@ -173,15 +188,20 @@
         ack(res);
       };
       const timer = setTimeout(
-        () => finish({ ok: false, timeout: true, error: "Couldn't reach that room. Check the code and try again." }),
+        () => finish({ ok: false, timeout: stage, error: stage === 'server' ? SERVER_UNREACHABLE : HOST_UNREACHABLE }),
         CONNECT_TIMEOUT_MS,
       );
 
       p.on('open', () => {
         if (peer !== p) return;
+        stage = 'host';
+        dispatch('status', 'Looking for the room...');
         const conn = p.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
         hostConn = conn;
-        conn.on('open', () => conn.send({ ev: 'joinRoom', ack: 1, name: preferredName }));
+        conn.on('open', () => {
+          dispatch('status', 'Joining...');
+          conn.send({ ev: 'joinRoom', ack: 1, name: preferredName });
+        });
         conn.on('data', (msg) => {
           if (!msg || typeof msg !== 'object') return;
           if (msg.ack) {
@@ -207,7 +227,8 @@
         if (peer !== p) return;
         if (err.type === 'peer-unavailable') return finish({ ok: false, notFound: true, error: 'Room not found!' });
         if (mode === 'client') return handOver(code);
-        finish({ ok: false, error: `Couldn't connect (${err.type || err.message}).` });
+        const unreachable = ['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type);
+        finish({ ok: false, error: unreachable ? SERVER_UNREACHABLE : `Couldn't connect (${err.type || err.message}).` });
       });
     }
 
@@ -216,10 +237,14 @@
     // Join the room if someone is hosting it, otherwise become its host.
     function enterRoom(code, ack, preferredName, deadline = Date.now() + ENTER_ROOM_DEADLINE_MS) {
       joinRoom(code, (res) => {
-        if (res.ok || !(res.notFound || res.timeout)) return ack(res);
+        // Success, a real refusal (e.g. full), or PeerJS itself unreachable: nothing more to try.
+        if (res.ok || res.timeout === 'server' || !(res.notFound || res.timeout)) return ack(res);
         createRoom((hostRes) => {
-          if (hostRes.ok || !hostRes.taken || Date.now() > deadline) return ack(hostRes);
-          // Someone else claimed the room first (or a departed host's ID hasn't expired yet); join them instead.
+          if (hostRes.ok || !hostRes.taken) return ack(hostRes);
+          // The room has a host we couldn't connect to: retrying won't help.
+          if (res.timeout === 'host' || Date.now() > deadline) return ack({ ok: false, error: HOST_UNREACHABLE });
+          // Someone else claimed the room at the same moment; join them instead.
+          dispatch('status', 'Someone just opened the room. Joining them...');
           setTimeout(() => enterRoom(code, ack, preferredName, deadline), 800 + Math.random() * 700);
         }, 0, code, preferredName);
       }, preferredName);
