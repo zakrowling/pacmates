@@ -92,7 +92,7 @@
 
     #game-view { display: none; flex-direction: column; align-items: center; position: relative; }
     /* Score panels sit at the corner matching each player's spawn: P1 TL, P2 TR, P3 BL, P4 BR. */
-    .hud { display: flex; justify-content: space-between; width: 100%; max-width: 528px; }
+    .hud { display: flex; justify-content: space-between; width: 100%; }
     .hud.top { margin-bottom: 6px; }
     .hud.bottom { margin-top: 6px; }
     .score-tag {
@@ -106,6 +106,8 @@
     .score-tag .tag-score { font-size: 10px; color: #fff; }
     .score-tag .tag-lives { font-size: 10px; letter-spacing: 1px; font-family: sans-serif; }
     canvas { background: #000; border-radius: 6px; image-rendering: pixelated; }
+    /* The arena is wider than most game boards; shrink it to fit smaller screens. */
+    #game-canvas { max-width: 100%; height: auto; }
 
     #game-over {
       display: none; position: absolute; inset: 40px 0 auto 0; margin: auto;

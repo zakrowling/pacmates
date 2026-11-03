@@ -37,9 +37,24 @@ test('room codes are 4 letters without I or O', () => {
   assert.throws(() => generateRoomCode(() => true));
 });
 
-test('maze has 4 corner spawns and a ghost house', () => {
-  assert.deepEqual(MAZE.spawns, [{ x: 1, y: 1 }, { x: 20, y: 1 }, { x: 1, y: 20 }, { x: 20, y: 20 }]);
-  assert.deepEqual(MAZE.houseExit, { x: 10, y: 9 });
+test('wide maze: 4 outer-corner spawns, two ghost houses, fully connected', () => {
+  assert.equal(MAZE.width, 43);
+  assert.deepEqual(MAZE.spawns, [{ x: 1, y: 1 }, { x: 41, y: 1 }, { x: 1, y: 20 }, { x: 41, y: 20 }]);
+  assert.deepEqual(MAZE.houses.map((h) => h.exit), [{ x: 10, y: 9 }, { x: 31, y: 9 }]);
+
+  const open = (x, y) => MAZE.walls[y] && MAZE.walls[y][(x + MAZE.width) % MAZE.width] === 0;
+  const seen = new Set(['1,1']);
+  const queue = [[1, 1]];
+  while (queue.length) {
+    const [x, y] = queue.pop();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = (x + dx + MAZE.width) % MAZE.width;
+      const key = `${nx},${y + dy}`;
+      if (open(nx, y + dy) && !seen.has(key)) { seen.add(key); queue.push([nx, y + dy]); }
+    }
+  }
+  const floor = MAZE.walls.flat().filter((t) => t === 0).length;
+  assert.equal(seen.size, floor);
 });
 
 test('players get numbers 1-4, unique names, first is host, 5th rejected', () => {
@@ -69,8 +84,9 @@ test('game starts with players on their corner spawns and 4 ghosts', () => {
   const { last } = startedRoom();
   const payload = last('gameStarted').data;
   const spawns = Object.fromEntries(payload.players.map((p) => [p.number, [p.x, p.y]]));
-  assert.deepEqual(spawns, { 1: [1, 1], 2: [20, 1], 3: [1, 20], 4: [20, 20] });
-  assert.equal(payload.ghosts.length, 4);
+  assert.deepEqual(spawns, { 1: [1, 1], 2: [41, 1], 3: [1, 20], 4: [41, 20] });
+  assert.equal(payload.ghosts.length, 8);
+  assert.equal(new Set(payload.ghosts.map((g) => g.id)).size, 8);
   assert.equal(payload.tickRate, 30);
 });
 
@@ -82,7 +98,7 @@ test('engine owns movement: bad input ignored, walls block, dots score', () => {
   room.input('p2', 'teleport');
   room.input('p1', 'up');
   run(10);
-  assert.deepEqual(tile(p2), [20, 1]);
+  assert.deepEqual(tile(p2), [41, 1]);
   assert.deepEqual(tile(p1), [1, 1]);
 
   room.input('p1', 'right');
@@ -104,7 +120,7 @@ test('ghost catches a player, who loses a life and respawns protected', () => {
   run(50);
   assert.equal(p2.status, 'alive');
   assert.ok(p2.invulnerableTicks > 0);
-  assert.deepEqual(tile(p2), [20, 1]);
+  assert.deepEqual(tile(p2), [41, 1]);
 });
 
 test('power pellet frightens ghosts; eating one scores and sends eyes home', () => {
@@ -152,7 +168,7 @@ test('mid-game join drops into the free corner without restarting the game', () 
   room.announceJoin('late');
   const late = room.players.get('late');
   assert.equal(late.number, 4);
-  assert.deepEqual(tile(late), [20, 20]);
+  assert.deepEqual(tile(late), [41, 20]);
   assert.ok(late.invulnerableTicks > 0);
   const catchUp = sent.find((m) => m.to === 'late' && m.ev === 'gameStarted');
   assert.ok(catchUp);
@@ -224,4 +240,16 @@ test('a preferred name is kept when free, otherwise a random one is used', () =>
   assert.notEqual(room.players.get('b').name, 'NOVA');
   room.join('c', 'NOT-A-NAME');
   assert.match(room.players.get('c').name, /^[A-Z]{4}$/);
+});
+
+test('each ghost family leaves and returns to its own house', () => {
+  const { room, run } = startedRoom(1);
+  const right = room.ghosts.find((g) => g.id === 'blinky-1');
+  assert.deepEqual([right.def.house.exit.x, right.def.house.exit.y], [31, 9]);
+  Object.assign(right, { def: { ...right.def, releaseTick: 0 }, inHouse: false, eyes: true, sx: 38 * S, sy: 9 * S, dir: { x: 0, y: 0 } });
+  room.players.get('p1').invulnerableTicks = 1e9;
+  let ticks = 0;
+  while (right.eyes && ticks++ < 300) run(1);
+  assert.equal(right.eyes, false);
+  assert.ok(right.sx / S >= 30 && right.sx / S <= 32, `revived at x=${right.sx / S}`);
 });

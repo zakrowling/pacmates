@@ -466,29 +466,30 @@
     lctx.lineWidth = TILE * 0.45 - 6;
     lctx.stroke();
 
-    // Ghost house door: pink bar across the house edge that leads to the exit.
-    const { houseDoor: d, houseExit: e } = maze;
+    // Ghost house doors: pink bar across each house edge that leads to its exit.
     const house = (x, y) => maze.walls[y] && maze.walls[y][x] === 2;
     lctx.strokeStyle = '#ffb8ff';
     lctx.lineWidth = 3;
     lctx.beginPath();
-    if (e.y !== d.y) {
-      let x0 = d.x;
-      let x1 = d.x;
-      while (house(x0 - 1, d.y)) x0--;
-      while (house(x1 + 1, d.y)) x1++;
-      const y = Math.max(d.y, e.y) * TILE;
-      lctx.moveTo(x0 * TILE + 2, y);
-      lctx.lineTo((x1 + 1) * TILE - 2, y);
-    } else {
-      let y0 = d.y;
-      let y1 = d.y;
-      while (house(d.x, y0 - 1)) y0--;
-      while (house(d.x, y1 + 1)) y1++;
-      const x = Math.max(d.x, e.x) * TILE;
-      lctx.moveTo(x, y0 * TILE + 2);
-      lctx.lineTo(x, (y1 + 1) * TILE - 2);
-    }
+    maze.houses.forEach(({ door: d, exit: e }) => {
+      if (e.y !== d.y) {
+        let x0 = d.x;
+        let x1 = d.x;
+        while (house(x0 - 1, d.y)) x0--;
+        while (house(x1 + 1, d.y)) x1++;
+        const y = Math.max(d.y, e.y) * TILE;
+        lctx.moveTo(x0 * TILE + 2, y);
+        lctx.lineTo((x1 + 1) * TILE - 2, y);
+      } else {
+        let y0 = d.y;
+        let y1 = d.y;
+        while (house(d.x, y0 - 1)) y0--;
+        while (house(d.x, y1 + 1)) y1++;
+        const x = Math.max(d.x, e.x) * TILE;
+        lctx.moveTo(x, y0 * TILE + 2);
+        lctx.lineTo(x, (y1 + 1) * TILE - 2);
+      }
+    });
     lctx.stroke();
     return layer;
   }
@@ -517,11 +518,12 @@
     state.wallLayer = buildWallLayer(payload.maze);
     canvas.width = payload.maze.width * TILE;
     canvas.height = payload.maze.height * TILE;
+    document.querySelectorAll('.hud').forEach((hud) => { hud.style.maxWidth = `${canvas.width}px`; });
 
     const players = new Map(payload.players.map((p) => [p.id, p]));
     state.prevPlayers = players;
     state.currPlayers = players;
-    const ghosts = new Map(payload.ghosts.map((g) => [g.name, g]));
+    const ghosts = new Map(payload.ghosts.map((g) => [g.id, g]));
     state.prevGhosts = ghosts;
     state.currGhosts = ghosts;
     state.popups = [];
@@ -543,7 +545,7 @@
     state.prevPlayers = state.currPlayers;
     state.currPlayers = new Map(snapshot.players.map((p) => [p.id, p]));
     state.prevGhosts = state.currGhosts;
-    state.currGhosts = new Map(snapshot.ghosts.map((g) => [g.name, g]));
+    state.currGhosts = new Map(snapshot.ghosts.map((g) => [g.id, g]));
     const now = performance.now();
     state.lastSnapshotAt = now;
 
@@ -644,7 +646,7 @@
     const flashWhite = g.flashing && Math.floor(now / 200) % 2;
 
     if (assets.sprites) {
-      let row = GHOSTS[g.name].row;
+      let row = GHOSTS[g.kind].row;
       let frame = GHOST_FRAMES[g.facing][step];
       if (g.eyes) {
         row = GHOST_EYES_ROW;
@@ -663,7 +665,7 @@
     const left = cx - w / 2;
     const top = cy - h / 2;
     if (!g.eyes) {
-      ctx.fillStyle = g.frightened ? (flashWhite ? '#ffffff' : '#2121ff') : GHOSTS[g.name].color;
+      ctx.fillStyle = g.frightened ? (flashWhite ? '#ffffff' : '#2121ff') : GHOSTS[g.kind].color;
       ctx.beginPath();
       ctx.arc(cx, top + w / 2, w / 2, Math.PI, 0);
       const zig = 6;
@@ -757,7 +759,7 @@
     });
 
     state.currGhosts.forEach((g) => {
-      const [x, y] = lerpEntity(state.prevGhosts.get(g.name), g, alpha);
+      const [x, y] = lerpEntity(state.prevGhosts.get(g.id), g, alpha);
       drawWrapped(x, (wx) => drawGhost(g, wx * TILE + TILE / 2, y * TILE + TILE / 2, SPRITE_SIZE, now));
     });
 

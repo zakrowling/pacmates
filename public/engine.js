@@ -36,12 +36,26 @@
   const GHOST_DIR_ORDER = [DIRECTIONS.up, DIRECTIONS.left, DIRECTIONS.down, DIRECTIONS.right];
 
   const MAZE = parseMaze(MAZE_LAYOUT);
-  const GHOST_DEFS = [
-    { name: 'blinky', releaseTick: 0, scatter: { x: MAZE.width - 1, y: -2 } },
-    { name: 'pinky', releaseTick: 3 * TICK_RATE, scatter: { x: 0, y: -2 } },
-    { name: 'inky', releaseTick: 8 * TICK_RATE, scatter: { x: MAZE.width - 1, y: MAZE.height + 1 } },
-    { name: 'clyde', releaseTick: 13 * TICK_RATE, scatter: { x: 0, y: MAZE.height + 1 } },
+  const GHOST_KINDS = [
+    { kind: 'blinky', releaseTick: 0, corner: ['right', 'top'] },
+    { kind: 'pinky', releaseTick: 3 * TICK_RATE, corner: ['left', 'top'] },
+    { kind: 'inky', releaseTick: 8 * TICK_RATE, corner: ['right', 'bottom'] },
+    { kind: 'clyde', releaseTick: 13 * TICK_RATE, corner: ['left', 'bottom'] },
   ];
+  // One family of four ghosts per ghost house; each family scatters to the corners of its own section.
+  const GHOST_DEFS = MAZE.houses.flatMap((house, family) => {
+    const x0 = Math.round((family * MAZE.width) / MAZE.houses.length);
+    const x1 = Math.round(((family + 1) * MAZE.width) / MAZE.houses.length) - 1;
+    return GHOST_KINDS.map((k, i) => ({
+      id: `${k.kind}-${family}`,
+      kind: k.kind,
+      family,
+      house,
+      home: house.tiles[i % house.tiles.length],
+      releaseTick: k.releaseTick,
+      scatter: { x: k.corner[0] === 'left' ? x0 : x1, y: k.corner[1] === 'top' ? -2 : MAZE.height + 1 },
+    }));
+  });
 
   const WRAP_STEPS = MAZE.width * STEPS_PER_TILE;
   const randInt = (n) => Math.floor(Math.random() * n);
@@ -130,13 +144,13 @@
   // ---------- Ghosts ----------
 
   function createGhosts() {
-    return GHOST_DEFS.map((def, i) => {
-      const home = MAZE.ghostHouse[i % MAZE.ghostHouse.length];
+    return GHOST_DEFS.map((def) => {
       return {
         def,
-        name: def.name,
-        sx: home.x * STEPS_PER_TILE,
-        sy: home.y * STEPS_PER_TILE,
+        id: def.id,
+        kind: def.kind,
+        sx: def.home.x * STEPS_PER_TILE,
+        sy: def.home.y * STEPS_PER_TILE,
         dir: { x: 0, y: 0 },
         facing: 'up',
         inHouse: true,
@@ -265,8 +279,7 @@
           walls: MAZE.walls,
           dots: this.dots,
           spawns: MAZE.spawns,
-          houseDoor: MAZE.houseDoor,
-          houseExit: MAZE.houseExit,
+          houses: MAZE.houses.map((h) => ({ door: h.door, exit: h.exit })),
           tunnelRows: MAZE.tunnelRows,
         },
         tickRate: TICK_RATE,
@@ -367,17 +380,18 @@
 
     // Classic arcade targeting: Blinky chases, Pinky ambushes ahead, Inky flanks off Blinky, Clyde gets shy up close.
     ghostTarget(g, tile) {
-      if (g.eyes) return MAZE.houseDoor;
-      if (g.inHouse) return MAZE.houseExit;
+      if (g.eyes) return g.def.house.door;
+      if (g.inHouse) return g.def.house.exit;
       const mode = MODE_SCHEDULE[this.modeIndex][0];
       const prey = this.nearestAlivePlayer(tile);
       if (mode === 'scatter' || !prey) return g.def.scatter;
 
-      switch (g.name) {
+      switch (g.kind) {
         case 'pinky':
           return { x: prey.x + prey.dir.x * 4, y: prey.y + prey.dir.y * 4 };
         case 'inky': {
-          const blinky = tileOf(this.ghosts[0]);
+          const partner = this.ghosts.find((o) => o.kind === 'blinky' && o.def.family === g.def.family) || g;
+          const blinky = tileOf(partner);
           const ax = prey.x + prey.dir.x * 2;
           const ay = prey.y + prey.dir.y * 2;
           return { x: 2 * ax - blinky.x, y: 2 * ay - blinky.y };
@@ -466,7 +480,8 @@
 
     serializeGhost(g) {
       return {
-        name: g.name,
+        id: g.id,
+        kind: g.kind,
         x: g.sx / STEPS_PER_TILE,
         y: g.sy / STEPS_PER_TILE,
         facing: g.facing,
@@ -491,7 +506,7 @@
             g.frightened = false;
             g.eyes = true;
             p.score += points;
-            events.push({ type: 'ghostEaten', by: p.id, ghost: g.name, points, x: gt.x, y: gt.y });
+            events.push({ type: 'ghostEaten', by: p.id, ghost: g.kind, points, x: gt.x, y: gt.y });
           } else if (p.invulnerableTicks === 0) {
             p.status = 'dead';
             p.deadTicks = DEATH_TICKS;
