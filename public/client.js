@@ -305,7 +305,10 @@
     $('start-btn').style.display = isHost() ? 'block' : 'none';
     $('waiting-hint').style.display = isHost() ? 'none' : 'block';
     $('host-hint').style.display = isHost() ? 'block' : 'none';
-    $('leave-btn').textContent = isHost() ? 'Close Room' : 'Leave Room';
+    $('room-code-txt').classList.toggle('long', payload.roomCode.length > 6);
+    const link = shareLink(payload.roomCode);
+    $('share-link').value = link;
+    history.replaceState(null, '', `${basePath()}?room=${encodeURIComponent(payload.roomCode.toLowerCase())}`);
     $('again-btn').style.display = isHost() ? 'block' : 'none';
     $('again-hint').style.display = isHost() ? 'none' : 'block';
   }
@@ -318,7 +321,17 @@
     document.body.classList.remove('in-game');
   }
 
+  // Directory the game is served from, e.g. "/pacmates/" on GitHub Pages or "/" locally.
+  function basePath() {
+    return location.pathname.replace(/[^/]*$/, '');
+  }
+
+  function shareLink(roomCode) {
+    return `${location.origin}${basePath()}${roomCode.toLowerCase()}`;
+  }
+
   function resetToSetup() {
+    history.replaceState(null, '', basePath());
     state.playerId = null;
     state.hostId = null;
     state.lobbyPlayers = [];
@@ -337,7 +350,10 @@
 
   function handleJoinResponse(res) {
     setConnecting(false);
-    if (!res.ok) return showError(res.error);
+    if (!res.ok) {
+      if ($('room-view').style.display === 'block') resetToSetup();
+      return showError(res.error);
+    }
     showError('');
     state.playerId = res.playerId;
     applyLobby(res);
@@ -369,6 +385,43 @@
     resetToSetup();
     showError(reason || 'Disconnected.');
   });
+  socket.on('reconnecting', (message) => {
+    showLobby();
+    $('start-btn').style.display = 'none';
+    $('waiting-hint').style.display = 'none';
+    $('host-hint').style.display = 'none';
+    showError('');
+    $('reconnect-hint').textContent = message;
+    $('reconnect-hint').style.display = 'block';
+  });
+  socket.on('rejoined', (res) => {
+    $('reconnect-hint').style.display = 'none';
+    handleJoinResponse(res);
+  });
+
+  $('copy-btn').addEventListener('click', async () => {
+    const input = $('share-link');
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch {
+      input.select();
+      document.execCommand('copy');
+    }
+    $('copy-btn').textContent = 'Copied!';
+    setTimeout(() => { $('copy-btn').textContent = 'Copy'; }, 1500);
+  });
+
+  // Links like /pacmates/mate (or ?room=mate) open that room: join it if someone is hosting, otherwise host it.
+  function enterRoomFromUrl() {
+    const requested = new URLSearchParams(location.search).get('room');
+    if (!requested) return;
+    if (!window.PacmatesNet.normaliseRoomName(requested)) {
+      history.replaceState(null, '', basePath());
+      return showError('Room names are 2-16 letters, numbers or dashes.');
+    }
+    setConnecting(true);
+    socket.emit('enterRoom', requested, handleJoinResponse);
+  }
 
   // ---------- Game ----------
 
@@ -646,8 +699,22 @@
   }
 
   function lerpEntity(prev, curr, alpha) {
-    if (!prev || Math.abs(prev.x - curr.x) + Math.abs(prev.y - curr.y) > 1) return [curr.x, curr.y];
-    return [prev.x + (curr.x - prev.x) * alpha, prev.y + (curr.y - prev.y) * alpha];
+    const w = state.maze.width;
+    let dx = curr.x - prev?.x;
+    // Crossing a tunnel jumps from one edge to the other; interpolate the short way round instead.
+    if (dx > w / 2) dx -= w;
+    else if (dx < -w / 2) dx += w;
+    if (!prev || Math.abs(dx) + Math.abs(prev.y - curr.y) > 1) return [curr.x, curr.y];
+    const x = prev.x + dx * alpha;
+    return [((x % w) + w) % w, prev.y + (curr.y - prev.y) * alpha];
+  }
+
+  // Draws an entity, plus a second copy on the far edge while it's partway through a tunnel.
+  function drawWrapped(x, draw) {
+    draw(x);
+    const w = state.maze.width;
+    if (x > w - 1) draw(x - w);
+    else if (x < 0) draw(x + w);
   }
 
   function drawPlayer(p, x, y, now) {
@@ -674,13 +741,13 @@
     state.currPlayers.forEach((p) => {
       if (p.status === 'out') return;
       const [x, y] = lerpEntity(state.prevPlayers.get(p.id), p, alpha);
-      drawPlayer(p, x, y, now);
+      drawWrapped(x, (wx) => drawPlayer(p, wx, y, now));
       positions.push([p, x, y]);
     });
 
     state.currGhosts.forEach((g) => {
       const [x, y] = lerpEntity(state.prevGhosts.get(g.name), g, alpha);
-      drawGhost(g, x * TILE + TILE / 2, y * TILE + TILE / 2, SPRITE_SIZE, now);
+      drawWrapped(x, (wx) => drawGhost(g, wx * TILE + TILE / 2, y * TILE + TILE / 2, SPRITE_SIZE, now));
     });
 
     const clock = performance.now();
@@ -697,6 +764,7 @@
 
   buildSlots();
   renderSlots();
+  enterRoomFromUrl();
   requestAnimationFrame(animateSlots);
   loadAssets();
 })();

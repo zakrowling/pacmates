@@ -8,7 +8,7 @@
 //   .  dot
 //   o  power pellet (frightens ghosts)
 //   G  ghost house (ghosts only)
-//   ' ' empty floor
+//   ' ' empty floor. A floor tile on the left/right edge is a tunnel that wraps to the other side.
 //   1-4  spawn point for Player 1-4 (no dot)
 const MAZE_LAYOUT = [
   '######################',
@@ -24,7 +24,7 @@ const MAZE_LAYOUT = [
   '#.##.#.###..###.#.##.#',
   '#..#.#..........#.#..#',
   '##.#.###.####.###.#.##',
-  '#........#..#........#',
+  ' ........#..#........ ',
   '#.###.##.#..#.##.###.#',
   '#...#............#...#',
   '###.#.#.######.#.#.###',
@@ -78,7 +78,15 @@ function parseMaze(layout) {
   }
   if (!houseDoor) throw new Error('Ghost house has no exit');
 
-  return { width, height, walls, dots, spawns, ghostHouse, houseDoor, houseExit };
+  const tunnelRows = [];
+  walls.forEach((row, y) => {
+    if (row[0] === TILE.FLOOR || row[width - 1] === TILE.FLOOR) {
+      if (row[0] !== row[width - 1]) throw new Error(`Tunnel on row ${y} must be open on both sides`);
+      tunnelRows.push(y);
+    }
+  });
+
+  return { width, height, walls, dots, spawns, ghostHouse, houseDoor, houseExit, tunnelRows };
 }
 
 return { MAZE_LAYOUT, TILE, PELLET, parseMaze };

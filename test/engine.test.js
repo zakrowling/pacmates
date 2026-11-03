@@ -191,3 +191,36 @@ test('game ends when every player is out of lives', () => {
   run(1);
   assert.equal(last('gameOver').data.reason, 'ghosts');
 });
+
+test('tunnel row wraps players from one edge to the other', () => {
+  const { room, run } = startedRoom(1);
+  assert.deepEqual(MAZE.tunnelRows, [13]);
+  const p1 = room.players.get('p1');
+  Object.assign(p1, { sx: 1 * S, sy: 13 * S, dir: { x: 0, y: 0 } });
+  room.input('p1', 'left');
+  run(2 * S);
+  assert.deepEqual(tile(p1), [MAZE.width - 1, 13]);
+  room.input('p1', 'right');
+  run(2 * S);
+  assert.deepEqual(tile(p1), [1, 13]);
+});
+
+test('ghosts catch players across the tunnel wrap', () => {
+  const { room, run } = startedRoom(1);
+  const p1 = room.players.get('p1');
+  Object.assign(p1, { sx: 0, sy: 13 * S, dir: { x: 0, y: 0 } });
+  placeGhost(room.ghosts[0], (MAZE.width - 1) * S + 2, 13 * S);
+  room.ghosts[0].dir = { x: 1, y: 0 };
+  run(2);
+  assert.equal(p1.status, 'dead');
+});
+
+test('a preferred name is kept when free, otherwise a random one is used', () => {
+  const { room } = makeRoom();
+  room.join('a', 'NOVA');
+  assert.equal(room.players.get('a').name, 'NOVA');
+  room.join('b', 'NOVA');
+  assert.notEqual(room.players.get('b').name, 'NOVA');
+  room.join('c', 'NOT-A-NAME');
+  assert.match(room.players.get('c').name, /^[A-Z]{4}$/);
+});

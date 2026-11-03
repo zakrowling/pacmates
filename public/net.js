@@ -2,10 +2,20 @@
 // - The host's browser runs the authoritative GameRoom from engine.js and registers the PeerJS
 //   id `pacmates-v1-<ROOMCODE>`, so the 4-letter room code is all mates need to connect.
 // - Joiners open a WebRTC data channel to the host and only send input; the host streams state back.
+// - Link rooms (e.g. /pacmates/mate): the first visitor hosts, later visitors join. If the host leaves,
+//   the remaining players hand hosting to the next player, so the room lives while anyone is in it.
 // The API mirrors the Socket.IO calls client.js used: net.on(event, fn) and net.emit(event, ...args, ack).
 (function () {
   const PEER_PREFIX = 'pacmates-v1-';
   const CONNECT_TIMEOUT_MS = 12000;
+  const ENTER_ROOM_DEADLINE_MS = 45000; // a crashed host's ID can stay reserved on the PeerJS server for a while
+  const HANDOVER_STAGGER_MS = 1500;
+  const ROOM_NAME_RE = /^[A-Z0-9](?:[A-Z0-9-]{0,14}[A-Z0-9])$/;
+
+  function normaliseRoomName(name) {
+    const upper = String(name || '').trim().toUpperCase();
+    return ROOM_NAME_RE.test(upper) ? upper : null;
+  }
   const { GameRoom, generateRoomCode } = window.PacmatesEngine;
 
   // Browsers throttle timers in background tabs to ~1/s; a worker timer keeps the host's game loop at full speed.
@@ -37,6 +47,7 @@
     let ticker = null;
     let hostConn = null;
     let localId = null;
+    let lastLobby = null; // client only: latest lobby, used to decide who takes over hosting
     const conns = new Map(); // host only: playerId -> DataConnection
 
     function dispatch(ev, data) {
@@ -51,6 +62,7 @@
       ticker = null;
       hostConn = null;
       localId = null;
+      lastLobby = null;
       conns.clear();
       if (old.room) old.room.destroy();
       if (old.ticker) old.ticker.stop();
@@ -82,7 +94,7 @@
         if (!room || !msg || typeof msg !== 'object') return;
         const id = conn.peer;
         if (msg.ev === 'joinRoom') {
-          const res = room.join(id);
+          const res = room.join(id, typeof msg.name === 'string' ? msg.name : undefined);
           conn.send({ ack: msg.ack, res: res.ok ? { ok: true, ...res.payload } : res });
           if (res.ok) {
             conns.set(id, conn);
@@ -106,9 +118,9 @@
       conn.on('error', (err) => console.warn('Player connection error', err));
     }
 
-    function createRoom(ack, attempt = 0) {
+    function createRoom(ack, attempt = 0, fixedCode = null, preferredName) {
       teardown();
-      const code = generateRoomCode();
+      const code = fixedCode || generateRoomCode();
       const p = new Peer(PEER_PREFIX + code, { debug: 0 });
       peer = p;
 
@@ -123,7 +135,7 @@
           setInterval: ticker.setInterval,
           clearInterval: ticker.clearInterval,
         });
-        const res = room.join(localId);
+        const res = room.join(localId, preferredName);
         ack({ ok: true, ...res.payload });
         room.announceJoin(localId);
       });
@@ -133,7 +145,13 @@
       p.on('error', (err) => {
         if (peer !== p) return;
         if (mode === 'host') return console.warn('PeerJS error', err);
-        if (err.type === 'unavailable-id' && attempt < 5) return createRoom(ack, attempt + 1);
+        if (err.type === 'unavailable-id') {
+          if (fixedCode) {
+            teardown();
+            return ack({ ok: false, taken: true, error: 'That room is busy. Try again in a moment.' });
+          }
+          if (attempt < 5) return createRoom(ack, attempt + 1, null, preferredName);
+        }
         teardown();
         ack({ ok: false, error: `Couldn't create a room (${err.type || err.message}). Check your connection.` });
       });
@@ -141,7 +159,7 @@
 
     // ---------- Client ----------
 
-    function joinRoom(code, ack) {
+    function joinRoom(code, ack, preferredName) {
       teardown();
       let settled = false;
       const p = new Peer({ debug: 0 });
@@ -155,7 +173,7 @@
         ack(res);
       };
       const timer = setTimeout(
-        () => finish({ ok: false, error: "Couldn't reach that room. Check the code and try again." }),
+        () => finish({ ok: false, timeout: true, error: "Couldn't reach that room. Check the code and try again." }),
         CONNECT_TIMEOUT_MS,
       );
 
@@ -163,36 +181,67 @@
         if (peer !== p) return;
         const conn = p.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
         hostConn = conn;
-        conn.on('open', () => conn.send({ ev: 'joinRoom', ack: 1 }));
+        conn.on('open', () => conn.send({ ev: 'joinRoom', ack: 1, name: preferredName }));
         conn.on('data', (msg) => {
           if (!msg || typeof msg !== 'object') return;
           if (msg.ack) {
             if (msg.res && msg.res.ok) {
               mode = 'client';
               localId = p.id;
+              lastLobby = msg.res;
             }
             return finish(msg.res || { ok: false, error: 'Unexpected reply from host.' });
           }
-          if (msg.ev && mode === 'client') dispatch(msg.ev, msg.data);
+          if (!msg.ev || mode !== 'client') return;
+          if (msg.ev === 'lobbyUpdate' || msg.ev === 'gameStarted') lastLobby = msg.data;
+          dispatch(msg.ev, msg.data);
         });
         conn.on('close', () => {
           if (hostConn !== conn) return;
-          const wasInRoom = mode === 'client';
+          if (mode === 'client') return handOver(code);
           teardown();
-          if (wasInRoom) dispatch('disconnect', 'The host left, so the room has closed.');
-          else finish({ ok: false, error: 'The host closed the connection.' });
+          finish({ ok: false, error: 'The host closed the connection.' });
         });
       });
       p.on('error', (err) => {
         if (peer !== p) return;
-        if (err.type === 'peer-unavailable') return finish({ ok: false, error: 'Room not found!' });
-        if (mode === 'client') {
-          teardown();
-          dispatch('disconnect', 'Lost connection to the host.');
-          return;
-        }
+        if (err.type === 'peer-unavailable') return finish({ ok: false, notFound: true, error: 'Room not found!' });
+        if (mode === 'client') return handOver(code);
         finish({ ok: false, error: `Couldn't connect (${err.type || err.message}).` });
       });
+    }
+
+    // ---------- Link rooms and host handover ----------
+
+    // Join the room if someone is hosting it, otherwise become its host.
+    function enterRoom(code, ack, preferredName, deadline = Date.now() + ENTER_ROOM_DEADLINE_MS) {
+      joinRoom(code, (res) => {
+        if (res.ok || !(res.notFound || res.timeout)) return ack(res);
+        createRoom((hostRes) => {
+          if (hostRes.ok || !hostRes.taken || Date.now() > deadline) return ack(hostRes);
+          // Someone else claimed the room first (or a departed host's ID hasn't expired yet); join them instead.
+          setTimeout(() => enterRoom(code, ack, preferredName, deadline), 800 + Math.random() * 700);
+        }, 0, code, preferredName);
+      }, preferredName);
+    }
+
+    // The host left: the lowest-numbered remaining player re-hosts first and everyone else rejoins them.
+    function handOver(code) {
+      const me = localId;
+      const lobby = lastLobby;
+      teardown();
+      const others = ((lobby && lobby.players) || [])
+        .filter((p) => p.id !== lobby.hostId)
+        .sort((a, b) => a.number - b.number);
+      const rank = Math.max(0, others.findIndex((p) => p.id === me));
+      const myName = (((lobby && lobby.players) || []).find((p) => p.id === me) || {}).name;
+      dispatch('reconnecting', 'The host left. Reconnecting...');
+      setTimeout(() => {
+        enterRoom(code, (res) => {
+          if (res.ok) dispatch('rejoined', res);
+          else dispatch('disconnect', res.error || 'The room has closed.');
+        }, myName);
+      }, rank * HANDOVER_STAGGER_MS + Math.random() * 300);
     }
 
     // ---------- Public API ----------
@@ -201,6 +250,11 @@
       const ack = typeof args[args.length - 1] === 'function' ? args.pop() : () => {};
       if (ev === 'createRoom') return createRoom(ack);
       if (ev === 'joinRoom') return joinRoom(String(args[0] || '').trim().toUpperCase(), ack);
+      if (ev === 'enterRoom') {
+        const name = normaliseRoomName(args[0]);
+        if (!name) return ack({ ok: false, error: 'Room names are 2-16 letters, numbers or dashes.' });
+        return enterRoom(name, ack);
+      }
       if (ev === 'leaveRoom') return teardown();
 
       if (mode === 'host' && room) {
@@ -224,5 +278,5 @@
     };
   }
 
-  window.PacmatesNet = { createNet };
+  window.PacmatesNet = { createNet, normaliseRoomName };
 })();

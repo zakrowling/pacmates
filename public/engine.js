@@ -17,7 +17,7 @@
   const INVULNERABLE_TICKS = 75;
   const FRIGHTENED_TICKS = 6 * TICK_RATE;
   const FLASH_TICKS = 2 * TICK_RATE;
-  const GHOST_SPEED = { normal: 0.85, frightened: 0.5, eyes: 2, house: 0.5 };
+  const GHOST_SPEED = { normal: 0.85, frightened: 0.5, eyes: 2, house: 0.5, tunnel: 0.45 };
   const MODE_SCHEDULE = [['scatter', 7], ['chase', 20], ['scatter', 7], ['chase', 20], ['scatter', 5], ['chase', Infinity]];
   const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O to avoid confusion with 1/0
   const PLAYER_COLORS = ['#ffff00', '#ff3333', '#00ffff', '#ffb8ff'];
@@ -43,7 +43,16 @@
     { name: 'clyde', releaseTick: 13 * TICK_RATE, scatter: { x: 0, y: MAZE.height + 1 } },
   ];
 
+  const WRAP_STEPS = MAZE.width * STEPS_PER_TILE;
   const randInt = (n) => Math.floor(Math.random() * n);
+  const wrapX = (x) => ((x % MAZE.width) + MAZE.width) % MAZE.width;
+  const wrapSteps = (sx) => ((sx % WRAP_STEPS) + WRAP_STEPS) % WRAP_STEPS;
+  // Horizontal distance the short way round, so tunnels count as adjacent.
+  const wrapDx = (a, b) => {
+    const d = Math.abs(a - b);
+    return Math.min(d, MAZE.width - d);
+  };
+  const isTunnelTile = (x, y) => (x === 0 || x === MAZE.width - 1) && MAZE.walls[y][x] === TILE.FLOOR;
   const tileOf = (e) => ({ x: e.sx / STEPS_PER_TILE, y: e.sy / STEPS_PER_TILE });
   const atTileCentre = (e) => e.sx % STEPS_PER_TILE === 0 && e.sy % STEPS_PER_TILE === 0;
   const facingOf = (dir) => Object.keys(DIRECTIONS).find((k) => DIRECTIONS[k].x === dir.x && DIRECTIONS[k].y === dir.y);
@@ -59,11 +68,11 @@
   }
 
   function isOpenForPlayer(x, y) {
-    return MAZE.walls[y] !== undefined && MAZE.walls[y][x] === TILE.FLOOR;
+    return MAZE.walls[y] !== undefined && MAZE.walls[y][wrapX(x)] === TILE.FLOOR;
   }
 
   function isOpenForGhost(g, x, y) {
-    const t = MAZE.walls[y] && MAZE.walls[y][x];
+    const t = MAZE.walls[y] && MAZE.walls[y][wrapX(x)];
     if (t === TILE.FLOOR) return true;
     return t === TILE.HOUSE && (g.eyes || g.inHouse);
   }
@@ -169,7 +178,8 @@
     }
 
     // Adds a player without messaging anyone; call announceJoin() after acknowledging the joiner.
-    join(id) {
+    // preferredName keeps a player's name when they move to a new host after a handover.
+    join(id, preferredName) {
       if (this.players.has(id)) return { ok: false, error: 'Already in this room.' };
       if (this.players.size >= MAX_PLAYERS) return { ok: false, error: 'Room is full (max 4 players)!' };
 
@@ -178,7 +188,8 @@
       while (taken.has(number)) number++;
       const usedNames = new Set([...this.players.values()].map((p) => p.name));
       const names = PLAYER_NAMES.filter((n) => !usedNames.has(n));
-      const player = { id, number, name: names[randInt(names.length)], color: PLAYER_COLORS[number - 1] };
+      const name = names.includes(preferredName) ? preferredName : names[randInt(names.length)];
+      const player = { id, number, name, color: PLAYER_COLORS[number - 1] };
       resetPlayerForGame(player);
       // Mid-game joiners drop in at their corner, briefly protected.
       if (this.started) player.invulnerableTicks = INVULNERABLE_TICKS;
@@ -255,6 +266,7 @@
           spawns: MAZE.spawns,
           houseDoor: MAZE.houseDoor,
           houseExit: MAZE.houseExit,
+          tunnelRows: MAZE.tunnelRows,
         },
         tickRate: TICK_RATE,
         ghosts: this.ghosts.map((g) => this.serializeGhost(g)),
@@ -311,7 +323,7 @@
       }
 
       if (p.dir.x || p.dir.y) {
-        p.sx += p.dir.x;
+        p.sx = wrapSteps(p.sx + p.dir.x);
         p.sy += p.dir.y;
         p.facing = facingOf(p.dir);
       }
@@ -415,7 +427,7 @@
         g.dir = this.chooseGhostDir(g, tile);
       }
       if (g.dir.x || g.dir.y) {
-        g.sx += g.dir.x;
+        g.sx = wrapSteps(g.sx + g.dir.x);
         g.sy += g.dir.y;
         g.facing = facingOf(g.dir);
       }
@@ -427,6 +439,10 @@
       if (g.eyes) speed = GHOST_SPEED.eyes;
       else if (g.inHouse) speed = GHOST_SPEED.house;
       else if (g.frightened) speed = GHOST_SPEED.frightened;
+      // Ghosts crawl through tunnels, as in the arcade.
+      if (!g.eyes && isTunnelTile(wrapX(Math.round(g.sx / STEPS_PER_TILE)), Math.round(g.sy / STEPS_PER_TILE))) {
+        speed = Math.min(speed, GHOST_SPEED.tunnel);
+      }
 
       g.speedAcc += speed;
       while (g.speedAcc >= 1) {
@@ -466,7 +482,7 @@
         for (const g of this.ghosts) {
           if (g.eyes || this.tick < g.def.releaseTick) continue;
           const gt = tileOf(g);
-          if (Math.abs(pt.x - gt.x) + Math.abs(pt.y - gt.y) >= 0.75) continue;
+          if (wrapDx(pt.x, gt.x) + Math.abs(pt.y - gt.y) >= 0.75) continue;
 
           if (g.frightened) {
             const points = GHOST_SCORE * 2 ** Math.min(this.ghostCombo, 3);
