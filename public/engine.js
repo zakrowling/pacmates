@@ -214,8 +214,9 @@
       this.broadcastLobby();
     }
 
+    // Any player in the room can start (or restart) the game.
     start(requesterId) {
-      if (this.started || requesterId !== this.hostId) return false;
+      if (this.started || !this.players.has(requesterId)) return false;
       this.dots = MAZE.dots.map((row) => [...row]);
       this.dotsRemaining = this.dots.flat().filter(Boolean).length;
       this.tick = 0;

@@ -52,6 +52,7 @@
   const state = {
     playerId: null,
     hostId: null,
+    linkRoom: false, // entered via a link like /pacmates/mate: no room code UI
     lobbyPlayers: [],
     maze: null,
     wallLayer: null,
@@ -180,10 +181,6 @@
     $('error-msg').textContent = msg || '';
   }
 
-  function isHost() {
-    return state.playerId && state.playerId === state.hostId;
-  }
-
   function playerLabel(p) {
     return `${p.name}${p.id === state.playerId ? ' (YOU)' : ''}`;
   }
@@ -255,7 +252,9 @@
       slot.style.borderColor = p ? p.color : '';
       slot.querySelector('.slot-name').textContent = p ? (p.name || 'YOU') : 'EMPTY';
       let tag = '';
-      if (p && p !== PREVIEW_PLAYER) tag = [isYou && '(YOU)', p.id === state.hostId && 'HOST'].filter(Boolean).join(' ');
+      if (p && p !== PREVIEW_PLAYER) {
+        tag = [isYou && '(YOU)', !state.linkRoom && p.id === state.hostId && 'HOST'].filter(Boolean).join(' ');
+      }
       slot.querySelector('.slot-tag').textContent = tag;
     });
   }
@@ -300,17 +299,16 @@
     $('setup-view').style.display = 'none';
     $('room-view').style.display = 'block';
     $('room-code-txt').textContent = payload.roomCode;
-    $('player-count').textContent = payload.players.length;
+    $('lobby-card').classList.toggle('link-room', state.linkRoom);
     renderSlots();
-    $('start-btn').style.display = isHost() ? 'block' : 'none';
-    $('waiting-hint').style.display = isHost() ? 'none' : 'block';
-    $('host-hint').style.display = isHost() ? 'block' : 'none';
+    // Any player can start.
+    const count = payload.players.length;
+    $('start-btn').textContent = `Start with ${count} player${count === 1 ? '' : 's'}`;
+    $('start-btn').style.display = 'block';
     $('room-code-txt').classList.toggle('long', payload.roomCode.length > 6);
     const link = shareLink(payload.roomCode);
     $('share-link').value = link;
     history.replaceState(null, '', `${basePath()}?room=${encodeURIComponent(payload.roomCode.toLowerCase())}`);
-    $('again-btn').style.display = isHost() ? 'block' : 'none';
-    $('again-hint').style.display = isHost() ? 'none' : 'block';
   }
 
   function showLobby() {
@@ -332,6 +330,8 @@
 
   function resetToSetup() {
     history.replaceState(null, '', basePath());
+    state.linkRoom = false;
+    $('lobby-card').classList.remove('link-room');
     state.playerId = null;
     state.hostId = null;
     state.lobbyPlayers = [];
@@ -388,8 +388,6 @@
   socket.on('reconnecting', (message) => {
     showLobby();
     $('start-btn').style.display = 'none';
-    $('waiting-hint').style.display = 'none';
-    $('host-hint').style.display = 'none';
     showError('');
     $('reconnect-hint').textContent = message;
     $('reconnect-hint').style.display = 'block';
@@ -419,6 +417,8 @@
       history.replaceState(null, '', basePath());
       return showError('Room names are 2-16 letters, numbers or dashes.');
     }
+    state.linkRoom = true;
+    $('lobby-card').classList.add('link-room');
     setConnecting(true);
     socket.emit('enterRoom', requested, handleJoinResponse);
   }

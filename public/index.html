@@ -59,6 +59,9 @@
     }
     .share .btn { width: auto; margin: 0; padding: 10px 14px; }
     .share-hint { margin-bottom: 12px; font-size: 8px; }
+    .room-label { margin-top: 16px; }
+    #lobby-card.link-room .room-details,
+    #lobby-card.link-room #setup-view { display: none; }
     .player-list { list-style: none; text-align: left; margin: 15px 0; }
     .player-item {
       padding: 8px 12px; margin: 6px 0; border-radius: 4px;
@@ -117,23 +120,23 @@
       <div class="or">- OR -</div>
       <input type="text" id="room-input" maxlength="4" placeholder="CODE" autocomplete="off">
       <button class="btn secondary" id="join-btn">Join Room</button>
-      <p class="hint" id="connecting-hint" style="display:none;">Connecting...</p>
     </div>
+    <p class="hint" id="connecting-hint" style="display:none;">Connecting...</p>
 
     <div id="room-view" style="display:none;">
-      <div>Room Code</div>
-      <div class="room-display" id="room-code-txt">----</div>
-      <div class="share">
-        <input type="text" id="share-link" readonly aria-label="Invite link">
-        <button class="btn secondary" id="copy-btn">Copy</button>
-      </div>
-      <p class="hint share-hint">Send this link to your mates. They join straight away, no code needed.</p>
-      <div>Players (<span id="player-count">1</span>/4)</div>
       <button class="btn" id="start-btn">Start Game</button>
-      <p class="hint" id="waiting-hint" style="display:none;">Waiting for host to start...</p>
-      <p class="hint" id="host-hint" style="display:none;">You're hosting. The game runs in your browser. If you leave, the next player takes over.</p>
       <p class="hint" id="reconnect-hint" style="display:none;"></p>
-      <button class="btn ghost" id="leave-btn">Leave Room</button>
+      <!-- Room code details are hidden for link rooms like /pacmates/mate -->
+      <div class="room-details">
+        <div class="room-label">Room Code</div>
+        <div class="room-display" id="room-code-txt">----</div>
+        <div class="share">
+          <input type="text" id="share-link" readonly aria-label="Invite link">
+          <button class="btn secondary" id="copy-btn">Copy</button>
+        </div>
+        <p class="hint share-hint">Send this link to your mates. They join straight away, no code needed.</p>
+        <button class="btn ghost" id="leave-btn">Leave Room</button>
+      </div>
     </div>
 
     <p class="error" id="error-msg" role="alert"></p>
@@ -155,7 +158,6 @@
       <h3 id="game-over-title">GAME OVER</h3>
       <ul class="player-list" id="standings"></ul>
       <button class="btn" id="again-btn">Play Again</button>
-      <p class="hint" id="again-hint" style="display:none;">Waiting for host...</p>
       <button class="btn ghost" id="exit-btn">Back to Lobby</button>
     </div>
   </div>

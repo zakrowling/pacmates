@@ -54,14 +54,15 @@ test('players get numbers 1-4, unique names, first is host, 5th rejected', () =>
   assert.match(room.join('p5').error, /full/);
 });
 
-test('only the host can start; input before start is ignored', () => {
+test('any player can start, outsiders cannot; input before start is ignored', () => {
   const { room } = makeRoom();
   room.join('p1');
   room.join('p2');
   room.input('p1', 'right');
   assert.equal(room.players.get('p1').nextDir, null);
-  assert.equal(room.start('p2'), false);
-  assert.equal(room.start('p1'), true);
+  assert.equal(room.start('stranger'), false);
+  assert.equal(room.start('p2'), true);
+  assert.equal(room.start('p1'), false);
 });
 
 test('game starts with players on their corner spawns and 4 ghosts', () => {
