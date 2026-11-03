@@ -1,9 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S, START_LIVES, POWER_RESPAWN_TICKS } = require('../public/engine.js');
+const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S, START_LIVES, POWER_RESPAWN_TICKS, READY_TICKS, TICK_RATE } = require('../public/engine.js');
 
 // Builds a room with a manual clock and records every message it sends.
-function makeRoom() {
+// Most tests skip the opening "READY!" pause (readyTicks: 0).
+function makeRoom({ readyTicks = 0 } = {}) {
   const sent = [];
   let tickFn = null;
   const room = new GameRoom('TEST', {
@@ -11,6 +12,7 @@ function makeRoom() {
     send: (to, ev, data) => sent.push({ to, ev, data }),
     setInterval: (fn) => { tickFn = fn; return 1; },
     clearInterval: () => { tickFn = null; },
+    readyTicks,
   });
   const run = (n = 1) => { for (let i = 0; i < n && tickFn; i++) tickFn(); };
   const last = (ev) => [...sent].reverse().find((m) => m.ev === ev);
@@ -423,4 +425,23 @@ test('power pellets are spread out, not bunched together', () => {
       assert.ok(Math.abs(ax - bx) + Math.abs(ay - by) >= 10, `pellets at ${ax},${ay} and ${bx},${by} are too close`);
     }
   }
+});
+
+test('each round opens frozen on READY! for as long as the start jingle', () => {
+  assert.ok(READY_TICKS >= 5.8 * TICK_RATE, 'covers the ~5.8s jingle');
+  const { room, run, last } = makeRoom({ readyTicks: READY_TICKS });
+  room.join('p1');
+  room.start('p1');
+  assert.equal(last('gameStarted').data.readyTicks, READY_TICKS);
+  const p = room.players.get('p1');
+  const start = { sx: p.sx, sy: p.sy };
+  room.input('p1', 'left');
+  room.input('p1', 'right');
+  run(READY_TICKS - 1);
+  assert.deepEqual({ sx: p.sx, sy: p.sy }, start, 'nobody moves during READY!');
+  assert.equal(room.tick, 0, 'the game clock waits too');
+  assert.ok(last('state').data.readyTicks > 0);
+  run(1 + 3 * S);
+  assert.equal(last('state').data.readyTicks, 0);
+  assert.notDeepEqual({ sx: p.sx, sy: p.sy }, start, 'moving after READY!');
 });

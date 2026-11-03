@@ -7,6 +7,8 @@
 })(typeof self !== 'undefined' ? self : this, ({ MAZE_LAYOUT, TILE, PELLET, parseMaze }) => {
 
   const TICK_RATE = 30;
+  // Each round opens with a frozen "READY!" while the start jingle (pacman-theme.mp3, ~5.8s) plays.
+  const READY_TICKS = 6 * TICK_RATE;
   const STEPS_PER_TILE = 4; // movement substeps; players move 1 substep per tick = 7.5 tiles/s
   const MAX_PLAYERS = 4;
   const START_LIVES = 5;
@@ -197,6 +199,8 @@
       this.send = hooks.send;
       this.setInterval = hooks.setInterval || ((fn, ms) => setInterval(fn, ms));
       this.clearInterval = hooks.clearInterval || ((id) => clearInterval(id));
+      this.readyDuration = hooks.readyTicks ?? READY_TICKS; // tests use 0
+      this.readyTicks = 0;
       this.hostId = null;
       this.players = new Map();
       this.ghosts = [];
@@ -273,6 +277,7 @@
       this.frightenedTicks = 0;
       this.ghosts = createGhosts(this.players.size);
       this.started = true;
+      this.readyTicks = this.readyDuration;
       this.players.forEach(resetPlayerForGame);
 
       this.broadcast('gameStarted', this.gamePayload());
@@ -317,6 +322,7 @@
           tunnelCols: MAZE.tunnelCols,
         },
         tickRate: TICK_RATE,
+        readyTicks: this.readyTicks,
         ghosts: this.ghosts.map((g) => this.serializeGhost(g)),
         ...this.lobbyPayload(),
       };
@@ -332,6 +338,19 @@
     }
 
     gameTick() {
+      // Frozen "READY!" at the start of the round: nothing moves and the game clock doesn't run
+      // (ghost release times count from the end of it). Turns pressed now are kept for the start.
+      if (this.readyTicks > 0) {
+        this.readyTicks--;
+        this.broadcast('state', {
+          tick: this.tick,
+          readyTicks: this.readyTicks,
+          players: [...this.players.values()].map(serializePlayer),
+          ghosts: this.ghosts.map((g) => this.serializeGhost(g)),
+          events: [],
+        });
+        return;
+      }
       this.tick++;
       const events = [];
       this.players.forEach(updatePlayerTimers);
@@ -344,6 +363,7 @@
 
       this.broadcast('state', {
         tick: this.tick,
+        readyTicks: 0,
         players: [...this.players.values()].map(serializePlayer),
         ghosts: this.ghosts.map((g) => this.serializeGhost(g)),
         events,
@@ -605,6 +625,7 @@
     MAZE,
     PELLET,
     TICK_RATE,
+    READY_TICKS,
     STEPS_PER_TILE,
     MAX_PLAYERS,
     START_LIVES,

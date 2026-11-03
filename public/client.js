@@ -528,6 +528,7 @@
     state.prevGhosts = ghosts;
     state.currGhosts = ghosts;
     state.popups = [];
+    state.readyTicks = payload.readyTicks || 0;
     state.lastSnapshotAt = performance.now();
     state.playing = true;
 
@@ -547,6 +548,7 @@
     state.currPlayers = new Map(snapshot.players.map((p) => [p.id, p]));
     state.prevGhosts = state.currGhosts;
     state.currGhosts = new Map(snapshot.ghosts.map((g) => [g.id, g]));
+    state.readyTicks = snapshot.readyTicks || 0;
     const now = performance.now();
     state.lastSnapshotAt = now;
 
@@ -801,6 +803,25 @@
 
     // Bubbles go on top so a Pac-Man never covers another player's name.
     positions.forEach(([p, x, y]) => drawNameBubble(p, x * TILE + TILE / 2, y * TILE + TILE / 2 - SPRITE_SIZE / 2));
+
+    if (state.readyTicks > 0) drawReady();
+  }
+
+  // Classic "READY!" (just below the ghost house) while the round waits for the start jingle.
+  function drawReady() {
+    const house = state.maze.houses[0];
+    const cx = canvas.width / 2;
+    const cy = house ? (house.door.y + 3.5) * TILE : canvas.height / 2;
+    ctx.save();
+    ctx.font = '24px "Geist Pixel", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const w = ctx.measureText('READY!').width + 24;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cx - w / 2, cy - 16, w, 32);
+    ctx.fillStyle = '#ffff00';
+    ctx.fillText('READY!', cx, cy + 1);
+    ctx.restore();
   }
 
   buildSlots();
