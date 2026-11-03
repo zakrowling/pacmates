@@ -529,6 +529,7 @@
     state.currGhosts = ghosts;
     state.popups = [];
     state.readyTicks = payload.readyTicks || 0;
+    state.readyAt = performance.now();
     state.lastSnapshotAt = performance.now();
     state.playing = true;
 
@@ -780,17 +781,20 @@
     ctx.drawImage(state.wallLayer, 0, 0);
     drawDots(now);
 
+    // While "Ready?" is up the board is frozen: ghosts and Pac-Men hold their animation frame.
+    const animNow = state.readyTicks > 0 ? state.readyAt : now;
+
     const positions = [];
     state.currPlayers.forEach((p) => {
       if (p.status === 'out') return;
       const [x, y] = lerpEntity(state.prevPlayers.get(p.id), p, alpha);
-      drawWrapped(x, y, (wx, wy) => drawPlayer(p, wx, wy, now));
+      drawWrapped(x, y, (wx, wy) => drawPlayer(p, wx, wy, animNow));
       positions.push([p, x, y]);
     });
 
     state.currGhosts.forEach((g) => {
       const [x, y] = lerpEntity(state.prevGhosts.get(g.id), g, alpha);
-      drawWrapped(x, y, (wx, wy) => drawGhost(g, wx * TILE + TILE / 2, wy * TILE + TILE / 2, SPRITE_SIZE, now));
+      drawWrapped(x, y, (wx, wy) => drawGhost(g, wx * TILE + TILE / 2, wy * TILE + TILE / 2, SPRITE_SIZE, animNow));
     });
 
     const clock = performance.now();
@@ -807,7 +811,7 @@
     if (state.readyTicks > 0) drawReady();
   }
 
-  // Classic "READY!" (just below the ghost house) while the round waits for the start jingle.
+  // "Ready?" (just below the ghost house) while the round waits for the start jingle.
   function drawReady() {
     const house = state.maze.houses[0];
     const cx = canvas.width / 2;
@@ -816,11 +820,11 @@
     ctx.font = '24px "Geist Pixel", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const w = ctx.measureText('READY!').width + 24;
+    const w = ctx.measureText('Ready?').width + 24;
     ctx.fillStyle = '#000';
     ctx.fillRect(cx - w / 2, cy - 16, w, 32);
     ctx.fillStyle = '#ffff00';
-    ctx.fillText('READY!', cx, cy + 1);
+    ctx.fillText('Ready?', cx, cy + 1);
     ctx.restore();
   }
 

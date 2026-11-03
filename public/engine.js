@@ -7,7 +7,7 @@
 })(typeof self !== 'undefined' ? self : this, ({ MAZE_LAYOUT, TILE, PELLET, parseMaze }) => {
 
   const TICK_RATE = 30;
-  // Each round opens with a frozen "READY!" while the start jingle (pacman-theme.mp3, ~5.8s) plays.
+  // Each round opens with a frozen "Ready?" while the start jingle (pacman-theme.mp3, ~5.8s) plays.
   const READY_TICKS = 6 * TICK_RATE;
   const STEPS_PER_TILE = 4; // movement substeps; players move 1 substep per tick = 7.5 tiles/s
   const MAX_PLAYERS = 4;
@@ -338,7 +338,7 @@
     }
 
     gameTick() {
-      // Frozen "READY!" at the start of the round: nothing moves and the game clock doesn't run
+      // Frozen "Ready?" at the start of the round: nothing moves and the game clock doesn't run
       // (ghost release times count from the end of it). Turns pressed now are kept for the start.
       if (this.readyTicks > 0) {
         this.readyTicks--;

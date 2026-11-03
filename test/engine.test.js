@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S, START_LIVES, POWER_RESPAWN_TICKS, READY_TICKS, TICK_RATE } = require('../public/engine.js');
 
 // Builds a room with a manual clock and records every message it sends.
-// Most tests skip the opening "READY!" pause (readyTicks: 0).
+// Most tests skip the opening "Ready?" pause (readyTicks: 0).
 function makeRoom({ readyTicks = 0 } = {}) {
   const sent = [];
   let tickFn = null;
@@ -427,7 +427,7 @@ test('power pellets are spread out, not bunched together', () => {
   }
 });
 
-test('each round opens frozen on READY! for as long as the start jingle', () => {
+test('each round opens frozen on Ready? for as long as the start jingle', () => {
   assert.ok(READY_TICKS >= 5.8 * TICK_RATE, 'covers the ~5.8s jingle');
   const { room, run, last } = makeRoom({ readyTicks: READY_TICKS });
   room.join('p1');
@@ -438,10 +438,10 @@ test('each round opens frozen on READY! for as long as the start jingle', () => 
   room.input('p1', 'left');
   room.input('p1', 'right');
   run(READY_TICKS - 1);
-  assert.deepEqual({ sx: p.sx, sy: p.sy }, start, 'nobody moves during READY!');
+  assert.deepEqual({ sx: p.sx, sy: p.sy }, start, 'nobody moves during Ready?');
   assert.equal(room.tick, 0, 'the game clock waits too');
   assert.ok(last('state').data.readyTicks > 0);
   run(1 + 3 * S);
   assert.equal(last('state').data.readyTicks, 0);
-  assert.notDeepEqual({ sx: p.sx, sy: p.sy }, start, 'moving after READY!');
+  assert.notDeepEqual({ sx: p.sx, sy: p.sy }, start, 'moving after Ready?');
 });
