@@ -8,12 +8,27 @@
     audio: {
       start: 'assets/audio/opening_song.mp3',
       eat: 'assets/audio/eating.short.mp3',
+      power: 'assets/audio/eatpill.mp3',
+      eatGhost: 'assets/audio/eatghost.mp3',
+      die: 'assets/audio/die.mp3',
       end: 'assets/audio/intermission.mp3',
     },
   };
   const TILE_SHEET_CELL = 16;
   const DOT_TILE_INDEX = 37;
+  const ENERGIZER_TILE = { x: 4, y: 2 };
   const SPRITE_CELL = 32;
+  const PACMAN_DEATH_ROW = 1;
+  const PACMAN_DEATH_FRAMES = 13;
+  const GHOSTS = {
+    blinky: { color: '#ff0000', row: 2 },
+    pinky: { color: '#ffb8ff', row: 3 },
+    inky: { color: '#00ffff', row: 4 },
+    clyde: { color: '#ffb852', row: 5 },
+  };
+  const GHOST_FRAMES = { up: [6, 7], down: [2, 3], left: [4, 5], right: [0, 1] };
+  const GHOST_EYES_ROW = 6;
+  const GHOST_FRIGHTENED_ROW = 7;
   const PACMAN_FRAMES = {
     right: [0, 1, 2, 1],
     left: [4, 3, 2, 3],
@@ -43,6 +58,10 @@
     tickMs: 1000 / 30,
     prevPlayers: new Map(),
     currPlayers: new Map(),
+    prevGhosts: new Map(),
+    currGhosts: new Map(),
+    popups: [],
+    lastEatSoundAt: 0,
     lastSnapshotAt: 0,
     playing: false,
     rafId: null,
@@ -65,31 +84,88 @@
   async function loadAssets() {
     [assets.tiles, assets.sprites] = await Promise.all([loadImage(ASSET_PATHS.tiles), loadImage(ASSET_PATHS.sprites)]);
     for (const [key, src] of Object.entries(ASSET_PATHS.audio)) {
-      const audio = new Audio(src);
+      const audio = new Audio();
       audio.preload = 'auto';
-      audio.addEventListener('error', () => console.warn(`Missing asset: ${src}`));
+      audio.addEventListener('canplaythrough', () => { audio.dataset.ready = '1'; }, { once: true });
+      audio.addEventListener('error', () => console.info(`No ${src}; using synthesized sound`), { once: true });
+      audio.src = src;
       assets.sounds[key] = audio;
     }
   }
 
-  function playSound(key, { restart = true } = {}) {
-    const audio = assets.sounds[key];
-    if (!audio || audio.error) return;
-    if (!restart && !audio.paused) return;
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
+  // ---------- Synthesized sound fallback (used when an audio file isn't in assets/) ----------
+
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  // Browsers only allow audio after a user gesture.
+  ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, getAudioCtx, { once: true }));
+
+  function tone(ac, { type = 'square', from, to = from, start = 0, dur, vol = 0.08 }) {
+    const t0 = ac.currentTime + start;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t0);
+    osc.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    gain.gain.setValueAtTime(vol, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
   }
 
-  // Pac-Man in sprites32.png is yellow; recolour row 0 for the other players.
+  let wakaToggle = false;
+  const SYNTH = {
+    eat(ac) {
+      wakaToggle = !wakaToggle;
+      tone(ac, { type: 'triangle', from: wakaToggle ? 480 : 260, to: wakaToggle ? 260 : 480, dur: 0.09, vol: 0.12 });
+    },
+    power(ac) {
+      tone(ac, { from: 180, to: 900, dur: 0.35, vol: 0.06 });
+    },
+    eatGhost(ac) {
+      tone(ac, { type: 'sawtooth', from: 150, to: 1600, dur: 0.22, vol: 0.06 });
+    },
+    die(ac) {
+      for (let i = 0; i < 8; i++) tone(ac, { from: 900 - i * 90, to: 400 - i * 40, start: i * 0.13, dur: 0.12, vol: 0.07 });
+      tone(ac, { from: 300, to: 60, start: 1.05, dur: 0.3, vol: 0.08 });
+    },
+    start(ac) {
+      [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(ac, { from: f, start: i * 0.12, dur: 0.11, vol: 0.06 }));
+    },
+    end(ac) {
+      [784, 659, 523, 392].forEach((f, i) => tone(ac, { type: 'triangle', from: f, start: i * 0.18, dur: 0.17, vol: 0.1 }));
+    },
+  };
+
+  function playSound(key) {
+    const audio = assets.sounds[key];
+    if (audio && audio.dataset.ready && !audio.error) {
+      audio.cloneNode().play().catch(() => {});
+      return;
+    }
+    const ac = getAudioCtx();
+    if (ac && SYNTH[key]) SYNTH[key](ac);
+  }
+
+  // Pac-Man in sprites32.png is yellow; recolour rows 0-1 (moving + death) for the other players.
   function getPacmanSheet(color) {
     if (!assets.sprites) return null;
     if (color.toLowerCase() === '#ffff00') return { image: assets.sprites, row: 0 };
     if (!assets.tintedPacman.has(color)) {
       const off = document.createElement('canvas');
       off.width = assets.sprites.width;
-      off.height = SPRITE_CELL;
+      off.height = SPRITE_CELL * 2;
       const octx = off.getContext('2d');
-      octx.drawImage(assets.sprites, 0, 0, off.width, SPRITE_CELL, 0, 0, off.width, SPRITE_CELL);
+      octx.drawImage(assets.sprites, 0, 0, off.width, off.height, 0, 0, off.width, off.height);
       octx.globalCompositeOperation = 'source-atop';
       octx.fillStyle = color;
       octx.fillRect(0, 0, off.width, off.height);
@@ -120,15 +196,27 @@
     const frames = PACMAN_FRAMES[facing] || PACMAN_FRAMES.right;
     const step = Math.floor(now / ANIMATION_FRAME_MS);
     const sheet = getPacmanSheet(p.color);
+    const dying = p.status === 'dead';
 
+    if (sheet && dying) {
+      const frame = Math.min(PACMAN_DEATH_FRAMES - 1, Math.floor(p.deathProgress * PACMAN_DEATH_FRAMES));
+      c.drawImage(sheet.image, frame * SPRITE_CELL, PACMAN_DEATH_ROW * SPRITE_CELL, SPRITE_CELL, SPRITE_CELL,
+        cx - size / 2, cy - size / 2, size, size);
+      return;
+    }
     if (sheet) {
       const frame = p.moving ? frames[step % frames.length] : frames[1];
       c.drawImage(sheet.image, frame * SPRITE_CELL, sheet.row * SPRITE_CELL, SPRITE_CELL, SPRITE_CELL,
         cx - size / 2, cy - size / 2, size, size);
       return;
     }
-    const mouth = p.moving ? [0.02, 0.12, 0.22, 0.12][step % 4] : 0.12;
-    const base = FACING_ANGLE[facing];
+    let mouth = p.moving ? [0.02, 0.12, 0.22, 0.12][step % 4] : 0.12;
+    let base = FACING_ANGLE[facing];
+    if (dying) {
+      mouth = 0.12 + 0.88 * p.deathProgress;
+      base = FACING_ANGLE.up;
+      if (mouth >= 0.99) return;
+    }
     c.fillStyle = p.color;
     c.beginPath();
     c.moveTo(cx, cy);
@@ -298,7 +386,37 @@
     lctx.strokeStyle = '#000';
     lctx.lineWidth = TILE * 0.45 - 6;
     lctx.stroke();
+
+    // Ghost house door: pink bar across the house edge that leads to the exit.
+    const { houseDoor: d, houseExit: e } = maze;
+    const house = (x, y) => maze.walls[y] && maze.walls[y][x] === 2;
+    lctx.strokeStyle = '#ffb8ff';
+    lctx.lineWidth = 3;
+    lctx.beginPath();
+    if (e.y !== d.y) {
+      let x0 = d.x;
+      let x1 = d.x;
+      while (house(x0 - 1, d.y)) x0--;
+      while (house(x1 + 1, d.y)) x1++;
+      const y = Math.max(d.y, e.y) * TILE;
+      lctx.moveTo(x0 * TILE + 2, y);
+      lctx.lineTo((x1 + 1) * TILE - 2, y);
+    } else {
+      let y0 = d.y;
+      let y1 = d.y;
+      while (house(d.x, y0 - 1)) y0--;
+      while (house(d.x, y1 + 1)) y1++;
+      const x = Math.max(d.x, e.x) * TILE;
+      lctx.moveTo(x, y0 * TILE + 2);
+      lctx.lineTo(x, (y1 + 1) * TILE - 2);
+    }
+    lctx.stroke();
     return layer;
+  }
+
+  function scoreText(p) {
+    const lives = p.status === 'out' ? 'OUT' : '♥'.repeat(Math.max(0, p.lives));
+    return `${playerLabel(p)}: ${p.score} ${lives}`;
   }
 
   function setupScoreboard(players) {
@@ -308,7 +426,7 @@
       tag.id = `score-${p.id}`;
       tag.style.borderLeft = `4px solid ${p.color}`;
       tag.style.color = p.color;
-      tag.textContent = `${playerLabel(p)}: ${p.score}`;
+      tag.textContent = scoreText(p);
       return tag;
     }));
   }
@@ -316,7 +434,10 @@
   function updateScoreboard(players) {
     players.forEach((p) => {
       const tag = $(`score-${p.id}`);
-      if (tag) tag.textContent = `${playerLabel(p)}: ${p.score}`;
+      if (tag) {
+        tag.textContent = scoreText(p);
+        tag.style.opacity = p.status === 'out' ? 0.4 : 1;
+      }
     });
     // Remove tags for players who left mid-game.
     const ids = new Set(players.map((p) => `score-${p.id}`));
@@ -334,6 +455,10 @@
     const players = new Map(payload.players.map((p) => [p.id, p]));
     state.prevPlayers = players;
     state.currPlayers = players;
+    const ghosts = new Map(payload.ghosts.map((g) => [g.name, g]));
+    state.prevGhosts = ghosts;
+    state.currGhosts = ghosts;
+    state.popups = [];
     state.lastSnapshotAt = performance.now();
     state.playing = true;
 
@@ -350,17 +475,33 @@
     if (!state.maze) return;
     state.prevPlayers = state.currPlayers;
     state.currPlayers = new Map(snapshot.players.map((p) => [p.id, p]));
-    state.lastSnapshotAt = performance.now();
+    state.prevGhosts = state.currGhosts;
+    state.currGhosts = new Map(snapshot.ghosts.map((g) => [g.name, g]));
+    const now = performance.now();
+    state.lastSnapshotAt = now;
 
-    snapshot.eaten.forEach(({ x, y, by }) => {
-      state.maze.dots[y][x] = false;
-      if (by === state.playerId) playSound('eat', { restart: false });
+    snapshot.events.forEach((ev) => {
+      const mine = ev.by === state.playerId;
+      if (ev.type === 'pellet') {
+        state.maze.dots[ev.y][ev.x] = 0;
+        if (mine && ev.power) playSound('power');
+        else if (mine && now - state.lastEatSoundAt > 120) {
+          state.lastEatSoundAt = now;
+          playSound('eat');
+        }
+      } else if (ev.type === 'ghostEaten') {
+        state.popups.push({ text: String(ev.points), x: ev.x, y: ev.y, until: now + 1000 });
+        if (mine) playSound('eatGhost');
+      } else if (ev.type === 'death' && ev.id === state.playerId) {
+        playSound('die');
+      }
     });
     updateScoreboard(snapshot.players);
   });
 
-  socket.on('gameOver', ({ standings }) => {
+  socket.on('gameOver', ({ standings, reason }) => {
     state.playing = false;
+    $('game-over-title').textContent = reason === 'cleared' ? 'MAZE CLEARED!' : 'GAME OVER';
     renderPlayerList($('standings'), standings, (p) => `${p.score}`);
     $('game-over').style.display = 'block';
     playSound('end');
@@ -380,7 +521,21 @@
     const dotSy = Math.floor(DOT_TILE_INDEX / TILE_SHEET_CELL) * TILE_SHEET_CELL;
     for (let y = 0; y < maze.height; y++) {
       for (let x = 0; x < maze.width; x++) {
-        if (!maze.dots[y][x]) continue;
+        const pellet = maze.dots[y][x];
+        if (!pellet) continue;
+        if (pellet === 2) {
+          if (Math.floor(now / 250) % 2) continue;
+          if (assets.tiles) {
+            ctx.drawImage(assets.tiles, ENERGIZER_TILE.x * TILE_SHEET_CELL, ENERGIZER_TILE.y * TILE_SHEET_CELL,
+              TILE_SHEET_CELL, TILE_SHEET_CELL, x * TILE, y * TILE, TILE, TILE);
+          } else {
+            ctx.fillStyle = '#ffb8ae';
+            ctx.beginPath();
+            ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, TILE * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          continue;
+        }
         if (assets.tiles) {
           ctx.drawImage(assets.tiles, dotSx, dotSy, TILE_SHEET_CELL, TILE_SHEET_CELL, x * TILE, y * TILE, TILE, TILE);
         } else {
@@ -402,13 +557,10 @@
   }
 
   function drawNameBubble(p, cx, top) {
-    const isYou = p.id === state.playerId;
     ctx.font = '9px PacmanEmu, monospace';
     ctx.textBaseline = 'middle';
-    const textW = ctx.measureText(p.name).width;
-    const iconW = 10;
-    const padX = 6;
-    const w = padX * 2 + iconW + 4 + textW;
+    ctx.textAlign = 'center';
+    const w = ctx.measureText(p.name).width + 14;
     const h = 16;
     const x = Math.max(1, Math.min(canvas.width - w - 1, cx - w / 2));
     const y = Math.max(1, top - h - 2);
@@ -416,33 +568,92 @@
     ctx.fillStyle = 'rgba(20, 20, 32, 0.85)';
     roundRect(ctx, x, y, w, h, h / 2);
     ctx.fill();
-    ctx.strokeStyle = p.color;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(p.name, x + w / 2, y + h / 2 + 1);
+  }
 
-    const iconX = x + padX + iconW / 2;
-    const midY = y + h / 2;
-    if (isYou) {
-      ctx.fillStyle = '#ffe600';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('★', iconX, midY + 1);
-    } else {
-      ctx.fillStyle = p.color;
+  function drawGhost(g, cx, cy, size, now) {
+    const step = Math.floor(now / 150) % 2;
+    const flashWhite = g.flashing && Math.floor(now / 200) % 2;
+
+    if (assets.sprites) {
+      let row = GHOSTS[g.name].row;
+      let frame = GHOST_FRAMES[g.facing][step];
+      if (g.eyes) {
+        row = GHOST_EYES_ROW;
+        frame = GHOST_FRAMES[g.facing][0];
+      } else if (g.frightened) {
+        row = GHOST_FRIGHTENED_ROW;
+        frame = (flashWhite ? 2 : 0) + step;
+      }
+      ctx.drawImage(assets.sprites, frame * SPRITE_CELL, row * SPRITE_CELL, SPRITE_CELL, SPRITE_CELL,
+        cx - size / 2, cy - size / 2, size, size);
+      return;
+    }
+
+    const w = size * 0.8;
+    const h = size * 0.8;
+    const left = cx - w / 2;
+    const top = cy - h / 2;
+    if (!g.eyes) {
+      ctx.fillStyle = g.frightened ? (flashWhite ? '#ffffff' : '#2121ff') : GHOSTS[g.name].color;
       ctx.beginPath();
-      ctx.arc(iconX, midY, 3.5, 0, Math.PI * 2);
+      ctx.arc(cx, top + w / 2, w / 2, Math.PI, 0);
+      const zig = 6;
+      for (let i = 0; i <= zig; i++) {
+        const zx = left + w - (i * w) / zig;
+        const zy = top + h - ((i + step) % 2 ? h * 0.14 : 0);
+        ctx.lineTo(zx, zy);
+      }
+      ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = '#fff';
-    ctx.font = '9px PacmanEmu, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(p.name, x + padX + iconW + 4, midY + 1);
+
+    if (g.frightened && !g.eyes) {
+      const face = flashWhite ? '#ff0000' : '#ffb8ae';
+      ctx.fillStyle = face;
+      ctx.fillRect(cx - w * 0.22, top + h * 0.35, w * 0.12, w * 0.12);
+      ctx.fillRect(cx + w * 0.1, top + h * 0.35, w * 0.12, w * 0.12);
+      ctx.strokeStyle = face;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i <= 6; i++) {
+        const mx = cx - w * 0.3 + (i * w * 0.6) / 6;
+        const my = top + h * 0.68 + (i % 2 ? -2 : 2);
+        if (i === 0) ctx.moveTo(mx, my);
+        else ctx.lineTo(mx, my);
+      }
+      ctx.stroke();
+      return;
+    }
+
+    const look = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[g.facing] || [0, 0];
+    [-1, 1].forEach((side) => {
+      const ex = cx + side * w * 0.2;
+      const ey = top + h * 0.38;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(ex + look[0] * 1.5, ey + look[1] * 1.5, w * 0.13, w * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2121de';
+      ctx.beginPath();
+      ctx.arc(ex + look[0] * w * 0.07, ey + look[1] * w * 0.08, w * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function lerpEntity(prev, curr, alpha) {
+    if (!prev || Math.abs(prev.x - curr.x) + Math.abs(prev.y - curr.y) > 1) return [curr.x, curr.y];
+    return [prev.x + (curr.x - prev.x) * alpha, prev.y + (curr.y - prev.y) * alpha];
   }
 
   function drawPlayer(p, x, y, now) {
     const cx = x * TILE + TILE / 2;
     const cy = y * TILE + TILE / 2;
+    // Flicker while invulnerable after respawning.
+    ctx.globalAlpha = p.invulnerable && Math.floor(now / 100) % 2 ? 0.35 : 1;
     drawPacman(ctx, p, cx, cy, SPRITE_SIZE, now);
+    ctx.globalAlpha = 1;
   }
 
   // Server is authoritative; the client only interpolates between the last two snapshots.
@@ -458,13 +669,25 @@
 
     const positions = [];
     state.currPlayers.forEach((p) => {
-      const prev = state.prevPlayers.get(p.id) || p;
-      const jump = Math.abs(prev.x - p.x) + Math.abs(prev.y - p.y) > 1;
-      const x = jump ? p.x : prev.x + (p.x - prev.x) * alpha;
-      const y = jump ? p.y : prev.y + (p.y - prev.y) * alpha;
+      if (p.status === 'out') return;
+      const [x, y] = lerpEntity(state.prevPlayers.get(p.id), p, alpha);
       drawPlayer(p, x, y, now);
       positions.push([p, x, y]);
     });
+
+    state.currGhosts.forEach((g) => {
+      const [x, y] = lerpEntity(state.prevGhosts.get(g.name), g, alpha);
+      drawGhost(g, x * TILE + TILE / 2, y * TILE + TILE / 2, SPRITE_SIZE, now);
+    });
+
+    const clock = performance.now();
+    state.popups = state.popups.filter((pop) => pop.until > clock);
+    ctx.font = '10px PacmanEmu, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#00ffff';
+    state.popups.forEach((pop) => ctx.fillText(pop.text, pop.x * TILE + TILE / 2, pop.y * TILE + TILE / 2));
+
     // Bubbles go on top so a Pac-Man never covers another player's name.
     positions.forEach(([p, x, y]) => drawNameBubble(p, x * TILE + TILE / 2, y * TILE + TILE / 2 - SPRITE_SIZE / 2));
   }

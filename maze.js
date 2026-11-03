@@ -1,6 +1,8 @@
 // Maze configuration matrix.
 //   #  wall
 //   .  dot
+//   o  power pellet (frightens ghosts)
+//   G  ghost house (ghosts only)
 //   ' ' empty floor
 //   1-4  spawn point for Player 1-4 (no dot)
 const MAZE_LAYOUT = [
@@ -9,10 +11,10 @@ const MAZE_LAYOUT = [
   '#.###.#.######.#.###.#',
   '#.#................#.#',
   '#.#.##.###..###.##.#.#',
-  '#......#......#......#',
+  '#o.....#......#.....o#',
   '###.##.#.####.#.##.###',
-  '#........#..#........#',
-  '#.####.#.#..#.#.####.#',
+  '#........#GG#........#',
+  '#.####.#.#GG#.#.####.#',
   '#......#......#......#',
   '#.##.#.###..###.#.##.#',
   '#..#.#..........#.#..#',
@@ -21,14 +23,15 @@ const MAZE_LAYOUT = [
   '#.###.##.#..#.##.###.#',
   '#...#............#...#',
   '###.#.#.######.#.#.###',
-  '#.....#........#.....#',
+  '#o....#........#....o#',
   '#.#######.##.#######.#',
   '#.........##.........#',
   '#3#######....#######4#',
   '######################',
 ];
 
-const TILE = { WALL: 1, FLOOR: 0 };
+const TILE = { FLOOR: 0, WALL: 1, HOUSE: 2 };
+const PELLET = { NONE: 0, DOT: 1, POWER: 2 };
 
 function parseMaze(layout) {
   const height = layout.length;
@@ -36,15 +39,17 @@ function parseMaze(layout) {
   const walls = [];
   const dots = [];
   const spawns = [];
+  const ghostHouse = [];
 
   layout.forEach((row, y) => {
     if (row.length !== width) throw new Error(`Maze row ${y} has width ${row.length}, expected ${width}`);
     const wallRow = [];
     const dotRow = [];
     [...row].forEach((ch, x) => {
-      wallRow.push(ch === '#' ? TILE.WALL : TILE.FLOOR);
-      dotRow.push(ch === '.');
+      wallRow.push(ch === '#' ? TILE.WALL : ch === 'G' ? TILE.HOUSE : TILE.FLOOR);
+      dotRow.push(ch === '.' ? PELLET.DOT : ch === 'o' ? PELLET.POWER : PELLET.NONE);
       if (/[1-4]/.test(ch)) spawns[Number(ch) - 1] = { x, y };
+      if (ch === 'G') ghostHouse.push({ x, y });
     });
     walls.push(wallRow);
     dots.push(dotRow);
@@ -53,8 +58,22 @@ function parseMaze(layout) {
   for (let i = 0; i < 4; i++) {
     if (!spawns[i]) throw new Error(`Maze is missing spawn point ${i + 1}`);
   }
+  if (ghostHouse.length === 0) throw new Error('Maze is missing a ghost house (G)');
 
-  return { width, height, walls, dots, spawns };
+  // The house door is the first house tile that opens onto the floor; ghosts leave through it.
+  let houseDoor = null;
+  let houseExit = null;
+  for (const t of ghostHouse) {
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      if (!houseDoor && walls[t.y + dy] && walls[t.y + dy][t.x + dx] === TILE.FLOOR) {
+        houseDoor = t;
+        houseExit = { x: t.x + dx, y: t.y + dy };
+      }
+    }
+  }
+  if (!houseDoor) throw new Error('Ghost house has no exit');
+
+  return { width, height, walls, dots, spawns, ghostHouse, houseDoor, houseExit };
 }
 
-module.exports = { MAZE_LAYOUT, TILE, parseMaze };
+module.exports = { MAZE_LAYOUT, TILE, PELLET, parseMaze };
