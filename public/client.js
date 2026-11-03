@@ -750,11 +750,11 @@
     const cy = y * TILE + TILE / 2;
     // Flicker while invulnerable after respawning.
     ctx.globalAlpha = p.invulnerable && Math.floor(now / 100) % 2 ? 0.35 : 1;
-    // Powered-up players glow (flashing near the end) so others know to run.
+    // Powered-up players get a soft glow in their own colour (flashing near the end) so others know to run.
     if (p.powered && p.status === 'alive') {
       const flashOff = p.poweredFlashing && Math.floor(now / 150) % 2;
-      ctx.shadowColor = flashOff ? 'transparent' : '#ffffff';
-      ctx.shadowBlur = 18;
+      ctx.shadowColor = flashOff ? 'transparent' : `${p.color}99`;
+      ctx.shadowBlur = 8;
     }
     drawPacman(ctx, p, cx, cy, SPRITE_SIZE, now);
     ctx.shadowBlur = 0;
