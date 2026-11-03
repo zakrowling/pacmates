@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S } = require('../public/engine.js');
+const { GameRoom, generateRoomCode, MAZE, PELLET, STEPS_PER_TILE: S, START_LIVES } = require('../public/engine.js');
 
 // Builds a room with a manual clock and records every message it sends.
 function makeRoom() {
@@ -115,7 +115,7 @@ test('ghost catches a player, who loses a life and respawns protected', () => {
   placeGhost(room.ghosts[0], p2.sx, p2.sy);
   run(1);
   assert.equal(p2.status, 'dead');
-  assert.equal(p2.lives, 2);
+  assert.equal(p2.lives, START_LIVES - 1);
   assert.ok(sent.some((m) => m.ev === 'state' && m.data.events.some((e) => e.type === 'death' && e.id === 'p2')));
 
   freezeGhost(room.ghosts[0]);
@@ -270,14 +270,14 @@ test('a powered Pac-Man eats an un-powered one, who respawns at their corner kee
   Object.assign(p2, { sx: p1.sx, sy: p1.sy, dir: { x: 0, y: 0 } });
   run(1);
   assert.equal(p2.status, 'dead');
-  assert.equal(p2.lives, 3);
+  assert.equal(p2.lives, START_LIVES);
   assert.equal(p1.score, before + 200);
   assert.ok(sent.some((m) => m.ev === 'state' && m.data.events.some((e) => e.type === 'playerEaten' && e.by === 'p1' && e.id === 'p2')));
 
   run(50);
   assert.equal(p2.status, 'alive');
   assert.deepEqual(tile(p2), [41, 1]);
-  assert.equal(p2.lives, 3);
+  assert.equal(p2.lives, START_LIVES);
 });
 
 test('players without a power-up, or both powered, pass through each other', () => {
@@ -346,4 +346,10 @@ test('joining mid-game adds the next ghost, which leaves the house shortly after
   room.leave('p3');
   room.join('p3b');
   assert.equal(room.ghosts.length, 6);
+});
+
+test('players start with 5 lives', () => {
+  const { room } = startedRoom(2);
+  assert.equal(START_LIVES, 5);
+  room.players.forEach((p) => assert.equal(p.lives, 5));
 });

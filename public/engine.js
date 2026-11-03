@@ -9,7 +9,7 @@
   const TICK_RATE = 30;
   const STEPS_PER_TILE = 4; // movement substeps; players move 1 substep per tick = 7.5 tiles/s
   const MAX_PLAYERS = 4;
-  const START_LIVES = 3;
+  const START_LIVES = 5;
   const DOT_SCORE = 10;
   const POWER_SCORE = 50;
   const GHOST_SCORE = 200; // doubles for each ghost or player eaten during one power-up
@@ -593,5 +593,6 @@
     TICK_RATE,
     STEPS_PER_TILE,
     MAX_PLAYERS,
+    START_LIVES,
   };
 });
