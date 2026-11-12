@@ -94,7 +94,14 @@
     #game-view { display: none; flex-direction: column; align-items: center; position: relative; }
     /* Score panels sit at the corner matching each player's spawn: P1 TL, P2 TR, P3 BL, P4 BR. */
     .hud { display: flex; justify-content: space-between; width: 100%; }
-    .hud.top { margin-bottom: 6px; }
+    .hud.top { margin-bottom: 6px; align-items: center; }
+    .game-home {
+      width: 30px; height: 30px; padding: 5px; border-radius: 6px; cursor: pointer;
+      background: #000; color: #ffe600; border: 2px solid #2a2a55;
+    }
+    .game-home:hover { border-color: #ffe600; }
+    .game-home:focus-visible { outline: 2px solid #ffe600; outline-offset: 2px; }
+    .game-home svg { width: 100%; height: 100%; display: block; }
     .hud.bottom { margin-top: 6px; }
     .score-tag {
       padding: 4px 10px; border-radius: 6px; background: #0d0d1f; border: 2px solid currentColor;
@@ -157,6 +164,7 @@
   <div id="game-view">
     <div class="hud top">
       <div class="score-tag empty" data-slot="1"></div>
+      <button type="button" class="game-home" id="game-home" aria-label="Back to the lobby" title="Back to the lobby"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h5v-6h3v6h5V9.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="score-tag right empty" data-slot="2"></div>
     </div>
     <canvas id="game-canvas" width="528" height="528"></canvas>

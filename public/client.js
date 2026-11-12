@@ -156,6 +156,7 @@
   const SOUND_VOLUME = { start: 0.5 };
 
   function playSound(key) {
+    if (state.away) return;
     const audio = assets.sounds[key];
     if (audio && audio.dataset.ready && !audio.error) {
       const clip = audio.cloneNode();
@@ -390,6 +391,13 @@
     resetToSetup();
   });
   $('exit-btn').addEventListener('click', showLobby);
+
+  // Home: just you back to the lobby screen, still in the room; the game carries on for everyone
+  // else, without its sounds or game-over screen, and the next game brings you back in.
+  $('game-home').addEventListener('click', () => {
+    state.away = true;
+    showLobby();
+  });
   // Link rooms: leave and go back to the home screen to create or join a different room.
   $('home-btn').addEventListener('click', () => {
     socket.emit('leaveRoom');
@@ -538,6 +546,7 @@
   }
 
   socket.on('gameStarted', (payload) => {
+    state.away = false;
     applyLobby(payload);
     state.maze = payload.maze;
     state.tickMs = 1000 / payload.tickRate;
@@ -605,6 +614,7 @@
 
   socket.on('gameOver', ({ standings, reason }) => {
     state.playing = false;
+    if (state.away) return;
     $('game-over-title').textContent = reason === 'cleared' ? 'MAZE CLEARED!' : 'GAME OVER';
     renderPlayerList($('standings'), standings, (p) => `${p.score}`);
     $('game-over').style.display = 'block';
