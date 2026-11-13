@@ -126,6 +126,12 @@
       width: 320px; background: rgba(0, 0, 0, 0.92);
     }
     #game-over h3 { color: #ffe600; margin-bottom: 12px; }
+    /* The line of instructions under the game runs the full width of the page, centred (100vw is
+       scaled by the page's zoom, so it's divided back out). */
+    #game-view > .hint {
+      width: calc(100vw / 0.9); max-width: none; box-sizing: border-box; padding: 0 24px;
+      align-self: center; text-align: center;
+    }
   </style>
 </head>
 <body>
